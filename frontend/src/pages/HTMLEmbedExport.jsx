@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, Filter, FileCode, AlertCircle, Loader } from 'lucide-react';
+import { Download, Filter, FileCode, AlertCircle, Loader, Search } from 'lucide-react';
 import api from '../services/api';
 
 function HTMLEmbedExport() {
@@ -17,13 +17,17 @@ function HTMLEmbedExport() {
     unit: 'all',
     lesson: 'all',
     module: 'all',
-    version: 'all'
+    version: 'all',
+    title: ''
   });
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingSingle, setDownloadingSingle] = useState(null);
   const [error, setError] = useState(null);
   const [videoCount, setVideoCount] = useState(0);
   const [counting, setCounting] = useState(false);
+  const [filteredVideos, setFilteredVideos] = useState([]);
+  const [loadingVideos, setLoadingVideos] = useState(false);
 
   useEffect(() => {
     loadFilterValues();
@@ -37,6 +41,7 @@ function HTMLEmbedExport() {
   useEffect(() => {
     if (filterValues.subjects.length > 0) {
       countVideos();
+      loadFilteredVideos();
     }
   }, [selectedFilters, filterValues]);
 
@@ -74,25 +79,7 @@ function HTMLEmbedExport() {
   const countVideos = async () => {
     try {
       setCounting(true);
-      const params = {};
-      if (selectedFilters.subject !== 'all') {
-        params.subject = selectedFilters.subject;
-      }
-      if (selectedFilters.grade !== 'all') {
-        params.grade = selectedFilters.grade;
-      }
-      if (selectedFilters.unit !== 'all') {
-        params.unit = selectedFilters.unit;
-      }
-      if (selectedFilters.lesson !== 'all') {
-        params.lesson = selectedFilters.lesson;
-      }
-      if (selectedFilters.module !== 'all') {
-        params.module = selectedFilters.module;
-      }
-      if (selectedFilters.version !== 'all') {
-        params.version = selectedFilters.version;
-      }
+      const params = buildFilterParams();
 
       const response = await api.get('/videos', { 
         params: {
@@ -146,31 +133,148 @@ function HTMLEmbedExport() {
     }
   };
 
+  const buildFilterParams = () => {
+    const params = {};
+    if (selectedFilters.subject !== 'all') {
+      params.subject = selectedFilters.subject;
+    }
+    if (selectedFilters.grade !== 'all') {
+      params.grade = selectedFilters.grade;
+    }
+    if (selectedFilters.unit !== 'all') {
+      params.unit = selectedFilters.unit;
+    }
+    if (selectedFilters.lesson !== 'all') {
+      params.lesson = selectedFilters.lesson;
+    }
+    if (selectedFilters.module !== 'all') {
+      params.module = selectedFilters.module;
+    }
+    if (selectedFilters.version !== 'all') {
+      params.version = selectedFilters.version;
+    }
+    if (selectedFilters.title && selectedFilters.title.trim() !== '') {
+      params.search = selectedFilters.title.trim();
+    }
+    return params;
+  };
+
+  const loadFilteredVideos = async () => {
+    try {
+      setLoadingVideos(true);
+      const params = buildFilterParams();
+
+      const response = await api.get('/videos', { 
+        params: {
+          ...params,
+          status: 'active',
+          limit: 10000
+        }
+      });
+      
+      let videos = [];
+      if (Array.isArray(response.data)) {
+        videos = response.data;
+      } else if (response.data && response.data.videos) {
+        videos = response.data.videos || [];
+        
+        const pagination = response.data.pagination;
+        if (pagination && pagination.totalPages > 1) {
+          const allVideos = [...videos];
+          
+          for (let page = 2; page <= pagination.totalPages; page++) {
+            const pageResponse = await api.get('/videos', {
+              params: {
+                ...params,
+                status: 'active',
+                limit: 10000,
+                page: page
+              }
+            });
+            
+            if (pageResponse.data && pageResponse.data.videos) {
+              allVideos.push(...pageResponse.data.videos);
+            } else if (Array.isArray(pageResponse.data)) {
+              allVideos.push(...pageResponse.data);
+            }
+          }
+          
+          videos = allVideos;
+        }
+      }
+      
+      const videosWithQR = videos.filter(video => 
+        video.redirect_slug && video.redirect_slug.trim() !== ''
+      );
+      
+      // Generate filename for each video
+      const videosWithFilenames = videosWithQR.map(video => {
+        const videoTitle = video.title || video.video_id || 'Untitled Video';
+        const filename = videoTitle
+          .replace(/\s+/g, '-')
+          .replace(/[<>:"/\\|?*]/g, '') // Remove invalid filename characters
+          + '.html';
+        return {
+          ...video,
+          htmlFilename: filename
+        };
+      });
+      
+      setFilteredVideos(videosWithFilenames);
+    } catch (err) {
+      console.error('Failed to load filtered videos:', err);
+      setFilteredVideos([]);
+    } finally {
+      setLoadingVideos(false);
+    }
+  };
+
+  const handleDownloadSingle = async (video) => {
+    try {
+      setDownloadingSingle(video.video_id);
+      setError(null);
+
+      // Build query parameters for single video
+      const params = {
+        video_id: video.video_id
+      };
+
+      // Fetch HTML file from backend
+      const response = await api.get('/videos/export-html-embeds', {
+        params: params
+      });
+
+      if (!response.data.success || !response.data.files || response.data.files.length === 0) {
+        throw new Error('No HTML file generated');
+      }
+
+      // Download the single HTML file
+      const file = response.data.files[0];
+      const blob = new Blob([file.content], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', file.filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download HTML file:', err);
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to download HTML file';
+      alert(`Failed to download: ${errorMessage}`);
+    } finally {
+      setDownloadingSingle(null);
+    }
+  };
+
   const handleDownloadHTML = async () => {
     try {
       setDownloading(true);
       setError(null);
 
       // Build query parameters
-      const params = {};
-      if (selectedFilters.subject !== 'all') {
-        params.subject = selectedFilters.subject;
-      }
-      if (selectedFilters.grade !== 'all') {
-        params.grade = selectedFilters.grade;
-      }
-      if (selectedFilters.unit !== 'all') {
-        params.unit = selectedFilters.unit;
-      }
-      if (selectedFilters.lesson !== 'all') {
-        params.lesson = selectedFilters.lesson;
-      }
-      if (selectedFilters.module !== 'all') {
-        params.module = selectedFilters.module;
-      }
-      if (selectedFilters.version !== 'all') {
-        params.version = selectedFilters.version;
-      }
+      const params = buildFilterParams();
 
       // Fetch HTML files from backend
       const response = await api.get('/videos/export-html-embeds', {
@@ -263,7 +367,8 @@ function HTMLEmbedExport() {
       unit: 'all',
       lesson: 'all',
       module: 'all',
-      version: 'all'
+      version: 'all',
+      title: ''
     });
   };
 
@@ -309,6 +414,21 @@ function HTMLEmbedExport() {
               </div>
             </div>
           )}
+
+          {/* Title Filter - Full Width */}
+          <div className="mb-6">
+            <label className="block text-sm font-bold text-slate-700 mb-2">
+              <Search className="w-4 h-4 inline mr-2" />
+              Filter by Title
+            </label>
+            <input
+              type="text"
+              value={selectedFilters.title}
+              onChange={(e) => handleFilterChange('title', e.target.value)}
+              placeholder="Search videos by title..."
+              className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-slate-300 transition-all text-[15px] font-medium"
+            />
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-6">
             {/* Subject Filter */}
@@ -485,7 +605,7 @@ function HTMLEmbedExport() {
                   </span>
                 )}
               </div>
-              {(selectedFilters.subject !== 'all' || selectedFilters.grade !== 'all' || selectedFilters.unit !== 'all' || selectedFilters.lesson !== 'all' || selectedFilters.module !== 'all' || selectedFilters.version !== 'all') && (
+              {(selectedFilters.subject !== 'all' || selectedFilters.grade !== 'all' || selectedFilters.unit !== 'all' || selectedFilters.lesson !== 'all' || selectedFilters.module !== 'all' || selectedFilters.version !== 'all' || selectedFilters.title.trim() !== '') && (
                 <button
                   onClick={resetFilters}
                   className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-semibold text-sm"
@@ -514,7 +634,78 @@ function HTMLEmbedExport() {
           </div>
         </div>
 
+        {/* Filtered Videos List */}
+        {filteredVideos.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-xl border-2 border-slate-200 p-6 sm:p-8 mb-6 lg:mb-8">
+            <div className="flex items-center gap-3 mb-6">
+              <FileCode className="w-6 h-6 text-indigo-600" />
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                Filtered Videos ({filteredVideos.length})
+              </h2>
+            </div>
+
+            {loadingVideos ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader className="w-6 h-6 animate-spin text-indigo-600 mr-3" />
+                <span className="text-slate-600">Loading videos...</span>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                {filteredVideos.map((video) => (
+                  <div
+                    key={video.video_id}
+                    className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl border-2 border-slate-200 hover:border-indigo-300 transition-all"
+                  >
+                    <div className="flex-1 min-w-0 mr-4">
+                      <div className="flex items-center gap-3">
+                        <FileCode className="w-5 h-5 text-indigo-600 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-slate-900 text-sm sm:text-base truncate">
+                            {video.title || video.video_id || 'Untitled Video'}
+                          </h3>
+                          <p className="text-xs sm:text-sm text-slate-600 mt-1 truncate">
+                            File: <span className="font-mono font-semibold">{video.htmlFilename}</span>
+                          </p>
+                          {video.video_id && (
+                            <p className="text-xs text-slate-500 mt-1">
+                              ID: <span className="font-mono">{video.video_id}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDownloadSingle(video)}
+                      disabled={downloadingSingle === video.video_id}
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all font-semibold text-sm shadow-md hover:shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex-shrink-0"
+                    >
+                      {downloadingSingle === video.video_id ? (
+                        <>
+                          <Loader className="w-4 h-4 animate-spin" />
+                          <span className="hidden sm:inline">Downloading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          <span className="hidden sm:inline">Download</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Info Section */}
+        {filteredVideos.length === 0 && !loadingVideos && filterValues.subjects.length > 0 && (
+          <div className="bg-blue-50 rounded-2xl border-2 border-blue-200 p-6 text-center">
+            <p className="text-blue-700 font-semibold">
+              No videos found matching the current filters. Try adjusting your search criteria.
+            </p>
+          </div>
+        )}
         
       </div>
     </div>
@@ -522,6 +713,8 @@ function HTMLEmbedExport() {
 }
 
 export default HTMLEmbedExport;
+
+
 
 
 

@@ -3203,9 +3203,113 @@ export async function generateFilteredVideosCSV(req, res) {
  */
 export async function generateHTMLEmbeds(req, res) {
   try {
-    const { subject, grade, unit, lesson, module, version } = req.query;
+    const { subject, grade, unit, lesson, module, version, search, video_id } = req.query;
     
-    console.log('[Generate HTML Embeds] Starting HTML embed generation with filters:', { subject, grade, unit, lesson, module, version });
+    console.log('[Generate HTML Embeds] Starting HTML embed generation with filters:', { subject, grade, unit, lesson, module, version, search, video_id });
+    
+    // If video_id is provided, fetch only that specific video
+    if (video_id) {
+      try {
+        const video = await videoService.getVideoByVideoId(video_id, true);
+        if (!video || !video.redirect_slug || String(video.redirect_slug).trim() === '') {
+          return res.status(404).json({ error: 'Video not found or does not have a redirect slug' });
+        }
+        
+        // Build frontend URL
+        let frontendUrl = config.urls?.frontend || 'http://localhost:5173';
+        if (process.env.FRONTEND_URL && process.env.FRONTEND_URL.trim()) {
+          frontendUrl = process.env.FRONTEND_URL.trim();
+        } else if (req) {
+          const origin = req.get('Origin') || req.get('Referer');
+          if (origin) {
+            try {
+              const originUrl = new URL(origin);
+              frontendUrl = `${originUrl.protocol}//${originUrl.host}`;
+            } catch (e) {
+              const protocol = req.get('X-Forwarded-Proto') || req.protocol || 'https';
+              const host = req.get('X-Forwarded-Host') || req.get('host') || '';
+              if (host && !host.includes('localhost')) {
+                frontendUrl = `${protocol}://${host}`;
+              }
+            }
+          }
+        }
+        
+        const videoTitle = video.title || video.video_id || 'Untitled Video';
+        const videoUrl = video.redirect_slug 
+          ? `${frontendUrl}/${video.redirect_slug}`
+          : `${frontendUrl}/stream/${video.video_id}`;
+        
+        const filename = videoTitle
+          .replace(/\s+/g, '-')
+          .replace(/[<>:"/\\|?*]/g, '')
+          + '.html';
+        
+        const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>${videoTitle}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        .video-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background-color: #000;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="video-container">
+        <iframe 
+            src="${videoUrl}"
+            allow="autoplay; fullscreen; encrypted-media"
+            allowfullscreen
+            loading="eager">
+        </iframe>
+    </div>
+
+</body>
+</html>`;
+        
+        return res.json({
+          success: true,
+          files: [{
+            filename,
+            content: htmlContent,
+            title: videoTitle
+          }],
+          count: 1,
+          message: 'Generated HTML embed file'
+        });
+      } catch (error) {
+        console.error('[Generate HTML Embeds] Error fetching single video:', error);
+        return res.status(500).json({ 
+          error: 'Failed to fetch video', 
+          message: error.message 
+        });
+      }
+    }
     
     // Build filters object - same as CSV export
     const filters = { 
@@ -3230,6 +3334,9 @@ export async function generateHTMLEmbeds(req, res) {
     }
     if (version && version !== 'all') {
       filters.version = version;
+    }
+    if (search && search.trim() !== '') {
+      filters.search = search.trim();
     }
     
     // Get filtered videos - handle paginated response format
