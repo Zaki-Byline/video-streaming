@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import './config/loadEnv.js';
+import { isOpenAiConfigured } from './config/loadEnv.js';
 import config from './config/config.js';
 import pool from './config/database.js';
 import authRoutes from './routes/authRoutes.js';
@@ -103,7 +105,11 @@ app.use('/', redirectRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    openai: isOpenAiConfigured() ? 'configured' : 'missing_api_key'
+  });
 });
 
 // Root route handler
@@ -166,6 +172,14 @@ async function testDatabaseConnection() {
       console.log('⚠️  Warning: No tables found. Run database/schema.sql to create tables.');
     } else {
       console.log('✅ Database schema is ready!');
+    }
+
+    if (!isOpenAiConfigured()) {
+      console.log('⚠️  OPENAI_API_KEY is not set — AI video descriptions will not work.');
+      console.log('   Local: set OPENAI_API_KEY in backend/.env');
+      console.log('   cPanel: Setup Node.js App → Environment Variables → OPENAI_API_KEY');
+    } else {
+      console.log(`✅ OpenAI configured (model: ${config.openai.model})`);
     }
     
     return true;

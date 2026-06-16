@@ -923,9 +923,15 @@ function VideoPlayer({ src, captions = [], autoplay = false, poster = null, vide
               if (captionUrl.startsWith('/')) {
                 captionUrl = captionUrl.substring(1);
               }
-              // Captions are stored in video-storage/captions/, so prepend video-storage/
-              // file_path format: "captions/videoId_language.vtt"
-              captionUrl = `${backendUrl}/video-storage/${captionUrl}`;
+              if (captionUrl.startsWith('captions/')) {
+                captionUrl = `${backendUrl}/video-storage/${captionUrl}`;
+              } else if (captionUrl.startsWith('upload/')) {
+                captionUrl = `${backendUrl}/${captionUrl}`;
+              } else if (captionUrl.startsWith('my-storage/') || captionUrl.startsWith('misc/')) {
+                captionUrl = `${backendUrl}/video-storage/${captionUrl}`;
+              } else {
+                captionUrl = `${backendUrl}/video-storage/${captionUrl}`;
+              }
             }
             
             console.log(`[VideoPlayer] Final caption URL: ${captionUrl}`);

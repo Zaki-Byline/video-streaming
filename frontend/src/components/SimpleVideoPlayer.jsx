@@ -224,13 +224,14 @@ function SimpleVideoPlayer({
       
       // Handle different path formats
       if (captionUrl.startsWith('captions/')) {
-        // Database format: captions/videoId_language.vtt
+        captionUrl = `${backendUrl}/video-storage/${captionUrl}`;
+      } else if (captionUrl.startsWith('upload/')) {
+        captionUrl = `${backendUrl}/${captionUrl}`;
+      } else if (captionUrl.startsWith('my-storage/') || captionUrl.startsWith('misc/')) {
         captionUrl = `${backendUrl}/video-storage/${captionUrl}`;
       } else if (captionUrl.startsWith('subtitles/')) {
-        // Subtitle format: subtitles/videoId.vtt
         captionUrl = `${backendUrl}/${captionUrl}`;
       } else {
-        // Default: assume it's in video-storage/captions
         captionUrl = `${backendUrl}/video-storage/captions/${captionUrl}`;
       }
     }

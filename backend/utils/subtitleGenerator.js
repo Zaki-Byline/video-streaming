@@ -10,6 +10,9 @@ import { promisify } from 'util';
 import { existsSync, unlinkSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { resolveFfmpegPath, isFfmpegAvailable } from './resolveFfmpeg.js';
+import { transcribeAudioToVtt } from './transcribeAudio.js';
+import { isOpenAiConfigured } from '../config/loadEnv.js';
 
 const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
@@ -51,8 +54,8 @@ export async function generateSubtitles(videoPath, options = {}) {
     // Step 1: Extract audio
     await extractAudio(videoPath, tempAudioPath);
 
-    // Step 2: Transcribe with Whisper
-    const whisperOutputPath = await transcribeAudio(tempAudioPath, model, language);
+    // Step 2: Transcribe with Whisper (local or OpenAI API)
+    const whisperOutputPath = await transcribeAudioToVtt(tempAudioPath, { model, language });
 
     // Step 3: Move VTT file to desired location
     if (whisperOutputPath !== finalOutputPath) {
@@ -96,17 +99,14 @@ async function commandExists(command) {
  * Extract audio from video using FFmpeg
  */
 async function extractAudio(videoPath, audioPath) {
-  if (!(await commandExists('ffmpeg'))) {
-    throw new Error('FFmpeg is not installed. Please install FFmpeg first.');
-  }
-
-  // Extract audio as WAV format (16kHz mono, which works well with Whisper)
+  const ffmpegBin = await resolveFfmpegPath();
   const isWindows = process.platform === 'win32';
   const escapedVideoPath = isWindows ? videoPath.replace(/"/g, '\\"') : videoPath;
   const escapedAudioPath = isWindows ? audioPath.replace(/"/g, '\\"') : audioPath;
-  
-  const command = `ffmpeg -i "${escapedVideoPath}" -ar 16000 -ac 1 -f wav "${escapedAudioPath}" -y`;
-  
+  const quotedFfmpeg = ffmpegBin.includes(' ') ? `"${ffmpegBin}"` : ffmpegBin;
+
+  const command = `${quotedFfmpeg} -i "${escapedVideoPath}" -ar 16000 -ac 1 -f wav "${escapedAudioPath}" -y`;
+
   try {
     await execAsync(command);
     return true;
@@ -115,47 +115,11 @@ async function extractAudio(videoPath, audioPath) {
   }
 }
 
-/**
- * Transcribe audio using Whisper
- */
-async function transcribeAudio(audioPath, model, language) {
-  if (!(await commandExists('whisper'))) {
-    throw new Error('Whisper is not installed. Please install OpenAI Whisper first.');
-  }
-
-  // Build Whisper command
-  const isWindows = process.platform === 'win32';
-  const escapedAudioPath = isWindows ? audioPath.replace(/"/g, '\\"') : audioPath;
-  const outputDir = path.dirname(audioPath);
-  const escapedOutputDir = isWindows ? outputDir.replace(/"/g, '\\"') : outputDir;
-  
-  let command = `whisper "${escapedAudioPath}" --model ${model} --output_format vtt --output_dir "${escapedOutputDir}"`;
-  
-  if (language) {
-    command += ` --language ${language}`;
-  }
-
-  try {
-    await execAsync(command);
-    
-    // Whisper outputs file as <audio-name>.vtt in the same directory
-    const audioName = path.basename(audioPath, path.extname(audioPath));
-    const whisperOutputPath = path.join(outputDir, `${audioName}.vtt`);
-    
-    return whisperOutputPath;
-  } catch (error) {
-    throw new Error(`Whisper error: ${error.message}`);
-  }
-}
-
-/**
- * Move and rename the VTT file to the desired output path
- */
 async function moveVttFile(sourcePath, destPath) {
   const fs = await import('fs/promises');
   try {
     await fs.copyFile(sourcePath, destPath);
-    await fs.unlink(sourcePath); // Remove temporary file
+    await fs.unlink(sourcePath);
   } catch (error) {
     throw new Error(`Error moving VTT file: ${error.message}`);
   }
@@ -166,13 +130,15 @@ async function moveVttFile(sourcePath, destPath) {
  * @returns {Promise<Object>} Status of required tools
  */
 export async function checkDependencies() {
-  const ffmpegInstalled = await commandExists('ffmpeg');
+  const ffmpegInstalled = await isFfmpegAvailable();
   const whisperInstalled = await commandExists('whisper');
+  const openaiTranscription = isOpenAiConfigured();
 
   return {
     ffmpeg: ffmpegInstalled,
     whisper: whisperInstalled,
-    allInstalled: ffmpegInstalled && whisperInstalled
+    openaiTranscription,
+    allInstalled: ffmpegInstalled && (whisperInstalled || openaiTranscription)
   };
 }
 

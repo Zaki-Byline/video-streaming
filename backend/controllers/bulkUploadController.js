@@ -1596,6 +1596,20 @@ export async function bulkUploadFromCSV(req, res) {
           // Continue - version creation is not critical
         }
 
+        // Schedule co-located VTT generation for local video files
+        if (!isRemoteFile && targetFilePath && fsSync.existsSync(targetFilePath) && videoDbId) {
+          try {
+            const { scheduleVttGeneration } = await import('../utils/vttLifecycle.js');
+            const createdVideo = await videoService.getVideoById(videoDbId);
+            if (createdVideo) {
+              scheduleVttGeneration(createdVideo, targetFilePath);
+              console.log(`[Row ${rowNumber}] 🎤 VTT generation scheduled for ${videoId}`);
+            }
+          } catch (vttErr) {
+            console.warn(`[Row ${rowNumber}] VTT scheduling failed (non-critical):`, vttErr.message);
+          }
+        }
+
         // Create cloudflare_resources entry so video appears in My Storage section
         // This MUST be created for CSV uploads to show in My Storage
         // Only create if video was successfully created (videoDbId exists)

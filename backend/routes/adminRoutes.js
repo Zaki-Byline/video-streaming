@@ -1,19 +1,18 @@
 import express from 'express';
 import * as redirectController from '../controllers/redirectController.js';
+import * as videoDescriptionController from '../controllers/videoDescriptionController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// All routes require authentication
 router.use(authenticateToken);
 
-// Admin redirect routes
 router.get('/redirects', redirectController.getAllRedirects);
 router.delete('/redirects/:slug', redirectController.deleteRedirect);
 
+router.get('/videos', videoDescriptionController.getVideosForDescriptionManager);
+router.put('/video/:id/description', videoDescriptionController.updateVideoDescription);
+router.delete('/video/:id/description', videoDescriptionController.deleteVideoDescription);
+router.post('/video/:id/generate-subtitles', videoDescriptionController.generateSubtitlesForVideo);
+
 export default router;
-
-
-
-
-
