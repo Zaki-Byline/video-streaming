@@ -1,7 +1,5 @@
+import './loadEnv.js';
 import mysql from 'mysql2/promise';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
@@ -15,8 +13,3 @@ const pool = mysql.createPool({
 });
 
 export default pool;
-
-
-
-
-

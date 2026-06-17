@@ -20,6 +20,7 @@ const QRCodeStorage = lazy(() => import('./pages/QRCodeStorage'));
 const VideosTrash = lazy(() => import('./pages/VideosTrash'));
 const CSVExport = lazy(() => import('./pages/CSVExport'));
 const HTMLEmbedExport = lazy(() => import('./pages/HTMLEmbedExport'));
+const VideoDescriptions = lazy(() => import('./pages/VideoDescriptions'));
 const MyStorageManager = lazy(() => import('./pages/CloudflareResourceManager'));
 const ShortUrlRedirect = lazy(() => import('./pages/ShortUrlRedirect'));
 
@@ -46,6 +47,7 @@ function App() {
           <Route path="admin/html-embed-export" element={<ProtectedRoute><HTMLEmbedExport /></ProtectedRoute>} />
           <Route path="admin/cloudflare" element={<ProtectedRoute><MyStorageManager /></ProtectedRoute>} />
           <Route path="admin/redirects" element={<ProtectedRoute><RedirectViewer /></ProtectedRoute>} />
+          <Route path="admin/video-descriptions" element={<ProtectedRoute><VideoDescriptions /></ProtectedRoute>} />
           <Route path="admin/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
           <Route path="admin/captions/:videoId" element={<ProtectedRoute><CaptionUpload /></ProtectedRoute>} />
           <Route path="admin/versions/:videoId" element={<ProtectedRoute><VersionHistory /></ProtectedRoute>} />

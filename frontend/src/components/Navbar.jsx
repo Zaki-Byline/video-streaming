@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { logout } from '../utils/auth';
 
 function Navbar() {
   const location = useLocation();
@@ -45,10 +46,7 @@ function Navbar() {
           <div className="flex items-center space-x-4">
             {isAdmin ? (
               <button
-                onClick={() => {
-                  localStorage.removeItem('token');
-                  window.location.href = '/admin/login';
-                }}
+                onClick={() => logout()}
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-md transition-colors"
               >
                 Logout

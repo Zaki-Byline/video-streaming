@@ -8,6 +8,8 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { isFfmpegAvailable } from '../utils/resolveFfmpeg.js';
+import { isOpenAiConfigured } from '../config/loadEnv.js';
 
 const execAsync = promisify(exec);
 
@@ -36,6 +38,10 @@ async function checkPythonVersion() {
   }
 }
 
+async function checkFfmpeg() {
+  return { installed: await isFfmpegAvailable() };
+}
+
 async function checkWhisper() {
   try {
     await execAsync('whisper --help');
@@ -49,27 +55,33 @@ async function main() {
   console.log('🔍 Checking subtitle generation dependencies...\n');
 
   const checks = [
-    await checkCommand('ffmpeg', 'FFmpeg'),
+    { ...(await checkFfmpeg()), name: 'FFmpeg' },
     await checkPythonVersion(),
-    await checkWhisper()
+    await checkWhisper(),
+    { installed: isOpenAiConfigured(), name: 'OpenAI transcription (fallback)' }
   ];
 
-  let allInstalled = true;
+  const ffmpegOk = checks[0].installed;
+  const whisperOk = checks[2].installed;
+  const openaiOk = checks[3].installed;
+  const allInstalled = ffmpegOk && (whisperOk || openaiOk);
 
   checks.forEach(check => {
     if (check.installed) {
       console.log(`✅ ${check.name} is installed${check.version ? ` (${check.version})` : ''}`);
     } else {
       console.log(`❌ ${check.name} is NOT installed`);
-      allInstalled = false;
     }
   });
 
   console.log('\n' + '='.repeat(50));
 
   if (allInstalled) {
-    console.log('✨ All dependencies are installed!');
-    console.log('You can now generate subtitles using:');
+    console.log('✨ Ready for subtitle generation!');
+    if (!whisperOk && openaiOk) {
+      console.log('   Using bundled FFmpeg + OpenAI Whisper API for transcription.');
+    }
+    console.log('You can generate subtitles using:');
     console.log('  node scripts/generateSubtitles.js <video-path>');
   } else {
     console.log('⚠️  Some dependencies are missing.');

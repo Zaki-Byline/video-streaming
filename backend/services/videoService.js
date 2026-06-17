@@ -1387,15 +1387,12 @@ export async function permanentDeleteVideo(id) {
   // Hard delete: Remove video record permanently
   // Also delete related redirects and captions
   try {
-    // Delete captions/subtitles for this video
-    try {
-      const captionService = await import('./captionService.js');
-      const captionResult = await captionService.deleteCaptionsByVideoId(video.video_id);
-      console.log(`[permanentDeleteVideo] Deleted ${captionResult.deleted} caption(s) and ${captionResult.filesDeleted} file(s) for video ${video.video_id}`);
-    } catch (captionError) {
-      console.warn(`[permanentDeleteVideo] Could not delete captions for video ${video.video_id}:`, captionError.message);
-      // Continue with video deletion even if caption deletion fails
-    }
+    const { deleteAllMediaForVideo } = await import('../utils/vttLifecycle.js');
+    const mediaResult = await deleteAllMediaForVideo(video);
+    console.log(
+      `[permanentDeleteVideo] Deleted media for ${video.video_id}: ` +
+      `${mediaResult.filesDeleted} VTT file(s), video=${mediaResult.videoDeleted}`
+    );
     
     // Delete redirects associated with this video
     if (video.redirect_slug) {

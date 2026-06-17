@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AlertCircle, CheckCircle, XCircle, Loader, RefreshCw, X } from 'lucide-react';
 import api from '../services/api';
+import { verifySession } from '../utils/auth';
 import { getBackendBaseUrl, getApiBaseUrl } from '../utils/apiConfig';
 
 function QRCodeDiagnostic({ onClose }) {
@@ -104,14 +105,13 @@ function QRCodeDiagnostic({ onClose }) {
 
       // Check 4: Authentication
       try {
-        const token = localStorage.getItem('token');
+        const isAuthenticated = await verifySession();
         diagnosticResults.checks.push({
           name: 'Authentication',
-          status: token ? 'success' : 'error',
-          message: token ? 'Authentication token found' : 'No authentication token',
+          status: isAuthenticated ? 'success' : 'error',
+          message: isAuthenticated ? 'Authenticated session found' : 'No authenticated session',
           details: {
-            hasToken: !!token,
-            tokenLength: token?.length || 0
+            hasSession: isAuthenticated
           }
         });
       } catch (err) {

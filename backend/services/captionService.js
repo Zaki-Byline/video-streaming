@@ -4,33 +4,80 @@ import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ensureDirectoryExists } from '../utils/fileUtils.js';
+import {
+  resolveCoLocatedVttAbsolute,
+  relativePathForCoLocatedVtt,
+  saveVttBesideVideo,
+  deleteVttForVideo
+} from '../utils/vttLifecycle.js';
+import { tryGenerateDescriptionAfterCaption } from '../utils/afterCaptionSaved.js';
+import { resolveLocalVideoPath } from '../utils/videoPathResolver.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const CAPTIONS_DIR = path.join(__dirname, '../../video-storage/captions');
+const VIDEO_STORAGE_ROOT = path.join(__dirname, '../../video-storage');
+
+function resolveCaptionFileOnDisk(caption, videoId) {
+  const paths = [];
+
+  if (caption.file_path) {
+    if (caption.file_path.startsWith('upload/')) {
+      paths.push(path.join(__dirname, '..', caption.file_path));
+    }
+    paths.push(path.join(VIDEO_STORAGE_ROOT, caption.file_path));
+    paths.push(path.join(__dirname, '..', caption.file_path));
+    paths.push(path.join(__dirname, '../..', caption.file_path));
+  }
+
+  paths.push(path.join(CAPTIONS_DIR, `${videoId}_${caption.language}.vtt`));
+  paths.push(path.join(CAPTIONS_DIR, path.basename(caption.file_path || '')));
+
+  for (const p of paths) {
+    if (p && fsSync.existsSync(p)) return p;
+  }
+  return null;
+}
 
 /**
- * Upload caption file
+ * Upload caption file — saves co-located beside video when possible, else legacy captions/.
  */
 export async function uploadCaption(videoId, language, fileBuffer, filename) {
   try {
+    const [videoRows] = await pool.execute(
+      'SELECT * FROM videos WHERE video_id = ? LIMIT 1',
+      [videoId]
+    );
+    const video = videoRows[0];
+    const mp4 = video ? resolveLocalVideoPath(video) : null;
+
+    if (mp4) {
+      const saved = await saveVttBesideVideo(videoId, mp4, fileBuffer);
+
+      if (video?.id) {
+        try {
+          await tryGenerateDescriptionAfterCaption(video, { vttPath: saved.absolutePath });
+        } catch (descErr) {
+          console.error(`[captionService] Description generation failed for ${videoId}:`, descErr.message);
+        }
+      }
+
+      return saved.relativePath;
+    }
+
     await ensureDirectoryExists(CAPTIONS_DIR);
-    
     const captionPath = path.join(CAPTIONS_DIR, `${videoId}_${language}.vtt`);
     await fs.writeFile(captionPath, fileBuffer);
-    
     const relativePath = `captions/${videoId}_${language}.vtt`;
-    
-    // Save to database
-    const query = `
-      INSERT INTO captions (video_id, language, file_path)
-      VALUES (?, ?, ?)
-      ON DUPLICATE KEY UPDATE file_path = ?
-    `;
-    
-    await pool.execute(query, [videoId, language, relativePath, relativePath]);
-    
+
+    await pool.execute(
+      `INSERT INTO captions (video_id, language, file_path)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE file_path = ?`,
+      [videoId, language, relativePath, relativePath]
+    );
+
     return relativePath;
   } catch (error) {
     console.error('Error uploading caption:', error);
@@ -39,12 +86,36 @@ export async function uploadCaption(videoId, language, fileBuffer, filename) {
 }
 
 /**
- * Get captions for a video
+ * Get captions for a video (DB rows + co-located VTT fallback).
  */
 export async function getCaptionsByVideoId(videoId) {
   const query = 'SELECT * FROM captions WHERE video_id = ?';
   const [rows] = await pool.execute(query, [videoId]);
-  return rows;
+
+  if (rows.length > 0) {
+    return rows;
+  }
+
+  const [videoRows] = await pool.execute(
+    'SELECT video_id, file_path, redirect_slug FROM videos WHERE video_id = ? LIMIT 1',
+    [videoId]
+  );
+  const video = videoRows[0];
+  if (!video) return rows;
+
+  const coLocated = resolveCoLocatedVttAbsolute(video);
+  if (!coLocated) return rows;
+
+  const mp4 = resolveLocalVideoPath(video);
+  const relativePath = mp4
+    ? relativePathForCoLocatedVtt(mp4)
+    : path.basename(coLocated);
+
+  return [{
+    video_id: videoId,
+    language: 'en',
+    file_path: relativePath
+  }];
 }
 
 /**
@@ -53,87 +124,42 @@ export async function getCaptionsByVideoId(videoId) {
 export async function deleteCaption(id) {
   const query = 'SELECT * FROM captions WHERE id = ?';
   const [rows] = await pool.execute(query, [id]);
-  
+
   if (rows.length > 0) {
     const caption = rows[0];
-    const filePath = path.join(__dirname, '../../video-storage', caption.file_path);
-    
-    try {
-      await fs.unlink(filePath);
-    } catch (error) {
-      console.error('Error deleting caption file:', error);
+    const diskPath = resolveCaptionFileOnDisk(caption, caption.video_id);
+
+    if (diskPath) {
+      try {
+        await fs.unlink(diskPath);
+      } catch (error) {
+        console.error('Error deleting caption file:', error);
+      }
     }
-    
+
     const deleteQuery = 'DELETE FROM captions WHERE id = ?';
     const [result] = await pool.execute(deleteQuery, [id]);
     return result.affectedRows > 0;
   }
-  
+
   return false;
 }
 
 /**
- * Delete all captions for a video by videoId
- * Also deletes caption files from both locations:
- * - video-storage/captions/ (final location)
- * - backend/subtitles/ (temp location)
+ * Delete all captions for a video (co-located VTT, legacy paths, DB rows).
  */
 export async function deleteCaptionsByVideoId(videoId) {
   try {
-    // Get all captions for this video
-    const captions = await getCaptionsByVideoId(videoId);
-    
-    if (captions.length === 0) {
-      console.log(`[deleteCaptionsByVideoId] No captions found for video ${videoId}`);
-      return { deleted: 0, filesDeleted: 0 };
-    }
-    
-    let filesDeleted = 0;
-    
-    // Delete caption files from video-storage/captions/
-    for (const caption of captions) {
-      try {
-        // Delete from video-storage/captions/
-        const captionFilePath = path.join(CAPTIONS_DIR, `${videoId}_${caption.language}.vtt`);
-        if (fsSync.existsSync(captionFilePath)) {
-          await fs.unlink(captionFilePath);
-          console.log(`[deleteCaptionsByVideoId] ✅ Deleted caption file: ${captionFilePath}`);
-          filesDeleted++;
-        }
-      } catch (error) {
-        console.warn(`[deleteCaptionsByVideoId] Could not delete caption file for ${videoId}_${caption.language}:`, error.message);
-      }
-    }
-    
-    // Delete temp subtitle file from backend/subtitles/
-    try {
-      const subtitlesDir = path.join(__dirname, '../subtitles');
-      const tempSubtitlePath = path.join(subtitlesDir, `${videoId}.vtt`);
-      if (fsSync.existsSync(tempSubtitlePath)) {
-        await fs.unlink(tempSubtitlePath);
-        console.log(`[deleteCaptionsByVideoId] ✅ Deleted temp subtitle file: ${tempSubtitlePath}`);
-        filesDeleted++;
-      }
-    } catch (error) {
-      // Ignore if temp file doesn't exist
-      console.log(`[deleteCaptionsByVideoId] Temp subtitle file not found (this is OK): ${videoId}.vtt`);
-    }
-    
-    // Delete from database
-    const deleteQuery = 'DELETE FROM captions WHERE video_id = ?';
-    const [result] = await pool.execute(deleteQuery, [videoId]);
-    const deletedCount = result.affectedRows;
-    
-    console.log(`[deleteCaptionsByVideoId] ✅ Deleted ${deletedCount} caption(s) from database for video ${videoId}`);
-    
-    return { deleted: deletedCount, filesDeleted };
+    const [videoRows] = await pool.execute(
+      'SELECT video_id, file_path, redirect_slug FROM videos WHERE video_id = ? LIMIT 1',
+      [videoId]
+    );
+    const video = videoRows[0] || { video_id: videoId };
+
+    const result = await deleteVttForVideo(video);
+    return { deleted: result.captionsDeleted || 0, filesDeleted: result.filesDeleted };
   } catch (error) {
     console.error(`[deleteCaptionsByVideoId] Error deleting captions for video ${videoId}:`, error);
     throw error;
   }
 }
-
-
-
-
-

@@ -10,6 +10,7 @@ import * as redirectService from '../services/redirectService.js';
 import * as qrCodeService from '../services/qrCodeService.js';
 import { ensureDirectoryExists, getFileSize, getVideoDuration } from '../utils/fileUtils.js';
 import { getBaseUrl } from '../utils/urlHelper.js';
+import { resolveLocalVideoPath } from '../utils/videoPathResolver.js';
 
 // Utility: check if a column exists in the videos table
 async function columnExists(columnName) {
@@ -881,50 +882,13 @@ export async function uploadVideo(req, res) {
     
     console.log(`[Upload Video] ✓ Video record created: ID ${insertId.value}`);
     
-    // Automatically generate subtitles for the uploaded video (async, non-blocking)
-    console.log(`[Upload Video] 🎤 Starting automatic subtitle generation for ${videoId}...`);
-    (async () => {
-      try {
-        const { generateSubtitles } = await import('../utils/subtitleGenerator.js');
-        const { ensureDirectoryExists } = await import('../utils/fileUtils.js');
-        const fs = await import('fs/promises');
-        const captionService = await import('../services/captionService.js');
-        
-        const videoNameWithoutExt = path.basename(fileName, path.extname(fileName));
-        
-        // Generate subtitle to temp location first
-        const subtitlesDir = path.join(path.dirname(__dirname), '../../subtitles');
-        await ensureDirectoryExists(subtitlesDir);
-        const tempSubtitlePath = path.join(subtitlesDir, `${videoNameWithoutExt}.vtt`);
-        
-        console.log(`[Upload Video] 🎤 Generating subtitles for: ${filePath}`);
-        console.log(`[Upload Video] 📝 Output path: ${tempSubtitlePath}`);
-        
-        // Generate subtitles
-        await generateSubtitles(filePath, {
-          outputPath: tempSubtitlePath,
-          model: 'base',
-          language: null // Auto-detect
-        });
-        
-        console.log(`[Upload Video] ✅ Subtitles generated: ${tempSubtitlePath}`);
-        
-        // Read subtitle file and save to caption system (video-storage/captions/)
-        try {
-          const subtitleBuffer = await fs.readFile(tempSubtitlePath);
-          await captionService.uploadCaption(videoId, 'en', subtitleBuffer, `${videoNameWithoutExt}.vtt`);
-          console.log(`[Upload Video] ✅ Caption saved to video-storage/captions/ and added to database for video ${videoId}`);
-        } catch (captionError) {
-          console.error(`[Upload Video] ❌ Could not add caption to database:`, captionError.message);
-          console.error(`[Upload Video] Caption error stack:`, captionError.stack);
-        }
-      } catch (subtitleError) {
-        console.error(`[Upload Video] ❌ Subtitle generation failed (non-critical):`, subtitleError.message);
-        console.error(`[Upload Video] Subtitle error stack:`, subtitleError.stack);
-        console.error(`[Upload Video] ⚠️ Video uploaded successfully, but subtitles will need to be generated manually.`);
-        console.error(`[Upload Video] 💡 Run: npm run generate-and-import-all`);
-      }
-    })();
+    // Auto-generate co-located VTT beside video (VID_123.mp4 → VID_123.vtt)
+    console.log(`[Upload Video] 🎤 Scheduling VTT generation for ${videoId}...`);
+    const { scheduleVttGeneration } = await import('../utils/vttLifecycle.js');
+    const videoRecord = await videoService.getVideoById(insertId.value);
+    if (videoRecord) {
+      scheduleVttGeneration(videoRecord, filePath);
+    }
     
     // Fetch the created video to get all fields
     const video = await videoService.getVideoById(insertId.value);
@@ -1177,6 +1141,22 @@ export async function replaceVideoFile(req, res) {
     console.log(`[Replace Video] ✓ QR code preserved: ${qrUrl}`);
     console.log(`[Replace Video] ✓ Streaming URL: ${streamingUrl}`);
     console.log(`[Replace Video] =================================`);
+
+    // Delete old VTT and regenerate from replaced video
+    try {
+      const { scheduleVttGeneration, deleteVttBesideVideoFile } = await import('../utils/vttLifecycle.js');
+      const oldMp4 = resolveLocalVideoPath(existingVideo);
+      if (oldMp4 && oldMp4 !== targetFilePath) {
+        await deleteVttBesideVideoFile(oldMp4);
+      }
+      scheduleVttGeneration(updatedVideo, targetFilePath, {
+        replace: true,
+        forceDescription: true
+      });
+      console.log(`[Replace Video] 🎤 VTT regeneration scheduled`);
+    } catch (vttError) {
+      console.warn(`[Replace Video] VTT regeneration failed to schedule:`, vttError.message);
+    }
     
     // Force database refresh by updating updated_at timestamp
     await pool.execute(

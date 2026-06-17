@@ -3,6 +3,7 @@ import * as videoController from '../controllers/videoController.js';
 import * as streamController from '../controllers/streamController.js';
 import * as bulkUploadController from '../controllers/bulkUploadController.js';
 import * as thumbnailController from '../controllers/thumbnailController.js';
+import * as videoDescriptionController from '../controllers/videoDescriptionController.js';
 import * as redirectService from '../services/redirectService.js';
 import * as videoService from '../services/videoService.js';
 import config from '../config/config.js';
@@ -180,6 +181,7 @@ router.delete('/upload-history/:id', authenticateToken, bulkUploadController.del
 router.delete('/upload-history', authenticateToken, bulkUploadController.bulkDeleteUploadHistory);
 
 // Video file replacement (with file upload) - MUST be before other /:id or /:videoId routes
+router.post('/:id/generate-description', authenticateToken, videoDescriptionController.generateAiDescription);
 router.post('/:id/replace-video', authenticateToken, multer({ 
   dest: tempUploadsDir,
   limits: { fileSize: 5 * 1024 * 1024 * 1024 } // 5GB limit
