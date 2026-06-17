@@ -10,6 +10,9 @@ import { isOpenAiConfigured } from '../config/loadEnv.js';
 import { getOpenAIClient, formatOpenAIError } from './openaiClient.js';
 import config from '../config/config.js';
 import { resolveVttPath, extractText } from './vttUtils.js';
+import { ensureDescriptionColumns, setAiStatus } from './aiStatus.js';
+
+export { ensureDescriptionColumns };
 
 const TIMESTAMP_LINE = /^\d{1,2}:\d{2}(?::\d{2})?[.,]\d{3}\s*-->\s*\d{1,2}:\d{2}(?::\d{2})?[.,]\d{3}/;
 
@@ -42,33 +45,6 @@ Transcript:
 ----------------
 {{TRANSCRIPT}}
 ----------------`;
-
-/**
- * Ensure ai_status, keywords, tags columns exist.
- */
-export async function ensureDescriptionColumns() {
-  const columns = [
-    { name: 'ai_status', ddl: "VARCHAR(20) DEFAULT 'pending' COMMENT 'pending|processing|done|failed'" },
-    { name: 'keywords', ddl: 'TEXT NULL COMMENT \'JSON array of SEO keywords\'' },
-    { name: 'tags', ddl: 'TEXT NULL COMMENT \'JSON array of topic tags\'' }
-  ];
-
-  for (const col of columns) {
-    const [rows] = await pool.execute(
-      `SELECT COUNT(*) AS count FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'videos' AND COLUMN_NAME = ?`,
-      [col.name]
-    );
-    if (rows[0].count === 0) {
-      await pool.execute(`ALTER TABLE videos ADD COLUMN ${col.name} ${col.ddl}`);
-    }
-  }
-}
-
-async function setAiStatus(videoDbId, status) {
-  await ensureDescriptionColumns();
-  await pool.execute('UPDATE videos SET ai_status = ? WHERE id = ?', [status, videoDbId]);
-}
 
 /**
  * Parse VTT into deduplicated caption lines (not merged blob).
@@ -208,68 +184,17 @@ export async function buildMetadataFromVtt(vttContent, title = '') {
 }
 
 /**
- * Generate description from existing VTT file for a video.
- * @param {{ id: number, video_id: string, title?: string }} video
- * @param {{ regenerate?: boolean, vttPath?: string }} options
+ * Generate description from VTT — OpenAI only (delegates to generateAiDescriptionForVideo).
  */
 export async function generateDescriptionFromVtt(video, options = {}) {
-  const { regenerate = false, vttPath: providedPath = null } = options;
+  const { regenerate = false } = options;
 
-  if (!video?.id || !video?.video_id) {
-    throw new Error('Video id and video_id are required');
+  if (!regenerate && ['openai', 'gemini'].includes(video.description_source) && video.description?.trim()) {
+    return { description: video.description };
   }
 
-  await ensureDescriptionColumns();
-  await setAiStatus(video.id, 'processing');
-
-  try {
-    let resolvedPath = providedPath || await resolveVttPath(video.video_id);
-
-    if (resolvedPath) {
-      const { isVttValid } = await import('./vttLifecycle.js');
-      if (!(await isVttValid(resolvedPath))) {
-        console.warn(`[generateDescriptionFromVtt] Corrupt VTT for ${video.video_id}, regenerating…`);
-        resolvedPath = null;
-      }
-    }
-
-    if (!resolvedPath) {
-      const { ensureVttFromVideo } = await import('./vttLifecycle.js');
-      const [fullVideoRows] = await pool.execute('SELECT * FROM videos WHERE id = ? LIMIT 1', [video.id]);
-      const fullVideo = fullVideoRows[0] || video;
-      resolvedPath = await ensureVttFromVideo(fullVideo);
-    }
-
-    if (!resolvedPath) {
-      throw new Error(`VTT file not found for ${video.video_id} and could not regenerate from video`);
-    }
-
-    const vtt = await fs.readFile(resolvedPath, 'utf8');
-    const metadata = await buildMetadataFromVtt(vtt, video.title || '');
-
-    if (!metadata.description) {
-      throw new Error('Generated description is empty');
-    }
-
-    await pool.execute(
-      `UPDATE videos
-       SET description = ?, keywords = ?, tags = ?, ai_status = 'done'
-       WHERE id = ?`,
-      [
-        metadata.description,
-        JSON.stringify(metadata.keywords),
-        JSON.stringify(metadata.tags),
-        video.id
-      ]
-    );
-
-    console.log(`[generateDescriptionFromVtt] ✅ #${video.id} ${video.video_id} — ${countWords(metadata.description)} words`);
-    return metadata;
-  } catch (error) {
-    await setAiStatus(video.id, 'failed');
-    console.error(`[generateDescriptionFromVtt] ❌ #${video.id} ${video.video_id}:`, error.message);
-    throw error;
-  }
+  const { generateAiDescriptionForVideo } = await import('./generateAiDescription.js');
+  return generateAiDescriptionForVideo(video);
 }
 
 /** @deprecated Use generateDescriptionFromVtt */

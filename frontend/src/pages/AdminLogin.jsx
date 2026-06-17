@@ -5,6 +5,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Logo from '../components/ui/Logo';
 import api from '../services/api';
+import { verifySession } from '../utils/auth';
 
 /**
  * Admin Login Page
@@ -20,31 +21,23 @@ function AdminLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Redirect to dashboard if already logged in (only if token is valid)
+  // Redirect to dashboard if an httpOnly session cookie is still valid
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      // Verify token is still valid with backend
-      api.get('/auth/verify')
-        .then((response) => {
-          // Only redirect if verification is successful
-          if (response.data && response.data.valid) {
-            const from = location.state?.from?.pathname || '/admin';
-            navigate(from, { replace: true });
-          } else {
-            // Invalid token, remove it
-            localStorage.removeItem('token');
-          }
-        })
-        .catch(() => {
-          // Token invalid or expired, remove it
-          localStorage.removeItem('token');
-        });
-    }
+    verifySession()
+      .then((isValid) => {
+        if (isValid) {
+          const from = location.state?.from?.pathname || '/admin';
+          navigate(from, { replace: true });
+        }
+      })
+      .catch(() => {
+        // No valid session
+      });
   }, [navigate, location]);
 
   const handleSubmit = async (e) => {
@@ -80,18 +73,16 @@ function AdminLogin() {
 
     try {
       // Make API call with trimmed credentials
-      const response = await api.post('/auth/login', { 
-        username: trimmedUsername, 
-        password: trimmedPassword 
+      const response = await api.post('/auth/login', {
+        username: trimmedUsername,
+        password: trimmedPassword,
+        rememberMe
       });
 
-      // Verify response contains token before proceeding
-      if (!response.data || !response.data.token) {
+      if (!response.data?.user) {
         throw new Error('Invalid response from server');
       }
 
-      // Store token only after successful authentication
-      localStorage.setItem('token', response.data.token);
       setSuccess(true);
       
       // Navigate to intended page or default to admin dashboard
@@ -100,8 +91,6 @@ function AdminLogin() {
         navigate(from, { replace: true });
       }, 800);
     } catch (err) {
-      // Clear any existing token on error
-      localStorage.removeItem('token');
       setError(err.response?.data?.error || 'Login failed. Please check your credentials.');
       setLoading(false);
       setSuccess(false);
@@ -174,6 +163,16 @@ function AdminLogin() {
                 required
               />
             </div>
+
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              Keep me signed in on this device
+            </label>
 
             {error && (
               <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm">

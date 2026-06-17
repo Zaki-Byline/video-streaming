@@ -1153,8 +1153,11 @@ export async function uploadToMyStorage(req, res) {
         }
 
         const { scheduleVttGeneration } = await import('../utils/vttLifecycle.js');
-        const stubVideo = { video_id: videoId, file_path: relativePath };
-        scheduleVttGeneration(stubVideo, targetFilePath);
+        let videoForVtt = await videoService.getVideoByVideoId(videoId);
+        if (!videoForVtt) {
+          videoForVtt = { video_id: videoId, file_path: relativePath };
+        }
+        scheduleVttGeneration(videoForVtt, targetFilePath);
       } catch (subtitleError) {
         console.error(`[Cloudflare Upload] ❌ VTT generation failed (non-critical):`, subtitleError.message);
       }

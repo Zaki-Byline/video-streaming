@@ -10,6 +10,7 @@ import {
   saveVttBesideVideo,
   deleteVttForVideo
 } from '../utils/vttLifecycle.js';
+import { tryGenerateDescriptionAfterCaption } from '../utils/afterCaptionSaved.js';
 import { resolveLocalVideoPath } from '../utils/videoPathResolver.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -45,7 +46,7 @@ function resolveCaptionFileOnDisk(caption, videoId) {
 export async function uploadCaption(videoId, language, fileBuffer, filename) {
   try {
     const [videoRows] = await pool.execute(
-      'SELECT video_id, file_path FROM videos WHERE video_id = ? LIMIT 1',
+      'SELECT * FROM videos WHERE video_id = ? LIMIT 1',
       [videoId]
     );
     const video = videoRows[0];
@@ -53,6 +54,15 @@ export async function uploadCaption(videoId, language, fileBuffer, filename) {
 
     if (mp4) {
       const saved = await saveVttBesideVideo(videoId, mp4, fileBuffer);
+
+      if (video?.id) {
+        try {
+          await tryGenerateDescriptionAfterCaption(video, { vttPath: saved.absolutePath });
+        } catch (descErr) {
+          console.error(`[captionService] Description generation failed for ${videoId}:`, descErr.message);
+        }
+      }
+
       return saved.relativePath;
     }
 

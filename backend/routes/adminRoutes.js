@@ -11,8 +11,8 @@ router.get('/redirects', redirectController.getAllRedirects);
 router.delete('/redirects/:slug', redirectController.deleteRedirect);
 
 router.get('/videos', videoDescriptionController.getVideosForDescriptionManager);
+router.post('/videos/bulk-generate-descriptions', videoDescriptionController.bulkGenerateDescriptions);
 router.put('/video/:id/description', videoDescriptionController.updateVideoDescription);
 router.delete('/video/:id/description', videoDescriptionController.deleteVideoDescription);
-router.post('/video/:id/generate-subtitles', videoDescriptionController.generateSubtitlesForVideo);
 
 export default router;

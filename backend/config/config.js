@@ -14,7 +14,14 @@ export default {
   
   jwt: {
     secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    sessionExpiresIn: process.env.JWT_SESSION_EXPIRES_IN || '8h'
+  },
+
+  auth: {
+    cookieName: process.env.AUTH_COOKIE_NAME || 'auth_token',
+    // Set COOKIE_CROSS_ORIGIN=true when frontend and API are on different domains
+    crossOrigin: process.env.COOKIE_CROSS_ORIGIN === 'true'
   },
   
   upload: {

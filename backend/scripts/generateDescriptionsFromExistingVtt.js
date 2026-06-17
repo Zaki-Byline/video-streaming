@@ -22,7 +22,7 @@ async function fetchBatch(offset, missingOnly) {
     : `status != 'deleted'`;
 
   const [rows] = await pool.execute(
-    `SELECT id, video_id, title, description
+    `SELECT id, video_id, title, description, description_source
      FROM videos
      WHERE ${where}
      ORDER BY id ASC

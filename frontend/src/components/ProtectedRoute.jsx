@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import api from '../services/api';
+import { verifySession } from '../utils/auth';
 
 /**
  * Protected Route Component
@@ -12,32 +12,12 @@ function ProtectedRoute({ children }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    
-    // No token means not authenticated
-    if (!token || token.trim() === '') {
-      setIsAuthenticated(false);
-      setIsLoading(false);
-      return;
-    }
-
-    // Verify token with backend - must get valid response
-    api.get('/auth/verify')
-      .then((response) => {
-        // Only authenticate if response is valid and contains valid flag
-        if (response.data && response.data.valid !== false) {
-          setIsAuthenticated(true);
-          setIsLoading(false);
-        } else {
-          // Invalid response, remove token
-          localStorage.removeItem('token');
-          setIsAuthenticated(false);
-          setIsLoading(false);
-        }
+    verifySession()
+      .then((isValid) => {
+        setIsAuthenticated(isValid);
+        setIsLoading(false);
       })
-      .catch((error) => {
-        // Token invalid, expired, or verification failed
-        localStorage.removeItem('token');
+      .catch(() => {
         setIsAuthenticated(false);
         setIsLoading(false);
       });

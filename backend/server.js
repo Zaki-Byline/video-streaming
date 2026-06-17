@@ -3,7 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import './config/loadEnv.js';
-import { isOpenAiConfigured } from './config/loadEnv.js';
+import { isOpenAiConfigured, isGeminiConfigured, getAiDescriptionProvider } from './config/loadEnv.js';
 import config from './config/config.js';
 import pool from './config/database.js';
 import authRoutes from './routes/authRoutes.js';
@@ -14,6 +14,7 @@ import captionRoutes from './routes/captionRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import cloudflareRoutes from './routes/cloudflareRoutes.js';
+import { startVttBackgroundProcessor } from './jobs/vttBackgroundProcessor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -108,7 +109,9 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    openai: isOpenAiConfigured() ? 'configured' : 'missing_api_key'
+    openai: isOpenAiConfigured() ? 'configured' : 'missing_api_key',
+    gemini: isGeminiConfigured() ? 'configured' : 'missing_api_key',
+    ai_descriptions: getAiDescriptionProvider() || 'not_configured'
   });
 });
 
@@ -174,12 +177,16 @@ async function testDatabaseConnection() {
       console.log('✅ Database schema is ready!');
     }
 
-    if (!isOpenAiConfigured()) {
-      console.log('⚠️  OPENAI_API_KEY is not set — AI video descriptions will not work.');
-      console.log('   Local: set OPENAI_API_KEY in backend/.env');
-      console.log('   cPanel: Setup Node.js App → Environment Variables → OPENAI_API_KEY');
-    } else {
+    if (isGeminiConfigured()) {
+      console.log(`✅ Gemini configured (model: ${process.env.GEMINI_MODEL || 'gemini-2.0-flash'})`);
+    }
+    if (isOpenAiConfigured()) {
       console.log(`✅ OpenAI configured (model: ${config.openai.model})`);
+    }
+    if (!isGeminiConfigured() && !isOpenAiConfigured()) {
+      console.log('⚠️  No AI API key — set GEMINI_API_KEY or OPENAI_API_KEY in backend/.env');
+    } else {
+      console.log(`✅ AI descriptions provider: ${getAiDescriptionProvider()}`);
     }
     
     return true;
@@ -214,6 +221,8 @@ testDatabaseConnection().then((connected) => {
       console.log(`🌐 Frontend URL: ${config.urls.frontend}`);
       console.log(`📦 CDN Mode: ${config.cdn.useCdn ? 'Enabled' : 'Disabled'}`);
       console.log('='.repeat(50) + '\n');
+
+      startVttBackgroundProcessor();
     });
 
     // Handle port already in use error

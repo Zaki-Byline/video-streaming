@@ -32,3 +32,39 @@ export function isOpenAiConfigured() {
 export function getOpenAiModel() {
   return process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini';
 }
+
+export function getGeminiApiKey() {
+  return (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
+}
+
+export function isGeminiConfigured() {
+  return Boolean(getGeminiApiKey());
+}
+
+export function getGeminiModel() {
+  return process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash-lite';
+}
+
+/** Models to try in order when the primary model is overloaded or out of quota. */
+export function getGeminiModelFallbacks() {
+  const primary = getGeminiModel();
+  const defaults = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+  return [...new Set([primary, ...defaults])];
+}
+
+/** True when OpenAI or Gemini can generate descriptions. */
+export function isAiDescriptionConfigured() {
+  return isGeminiConfigured() || isOpenAiConfigured();
+}
+
+export function getAiDescriptionProvider() {
+  if (process.env.AI_DESCRIPTION_PROVIDER === 'openai' && isOpenAiConfigured()) {
+    return 'openai';
+  }
+  if (process.env.AI_DESCRIPTION_PROVIDER === 'gemini' && isGeminiConfigured()) {
+    return 'gemini';
+  }
+  if (isGeminiConfigured()) return 'gemini';
+  if (isOpenAiConfigured()) return 'openai';
+  return null;
+}

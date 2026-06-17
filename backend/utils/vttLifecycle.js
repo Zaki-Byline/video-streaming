@@ -13,6 +13,8 @@ import { generateSubtitles } from './subtitleGenerator.js';
 import { ensureDirectoryExists } from './fileUtils.js';
 import { resolveLocalVideoPath } from './videoPathResolver.js';
 import { tryGenerateDescriptionAfterCaption } from './afterCaptionSaved.js';
+import { setAiStatus } from './aiStatus.js';
+import { markVideoInFlight, releaseVideoInFlight } from '../utils/vttInFlight.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -157,6 +159,7 @@ export async function isVttValid(vttPath) {
 
 export async function generateVttFromVideo(video, videoAbsolutePath, options = {}) {
   const { replace = false, generateDescription = true, forceDescription = false } = options;
+  const videoLabel = video?.video_id || path.basename(videoAbsolutePath || '');
 
   if (!videoAbsolutePath || !fs.existsSync(videoAbsolutePath)) {
     throw new Error(`Video file not found: ${videoAbsolutePath}`);
@@ -168,30 +171,71 @@ export async function generateVttFromVideo(video, videoAbsolutePath, options = {
 
   const pairedVtt = vttPathForVideoPath(videoAbsolutePath);
   if (!replace && (await isVttValid(pairedVtt))) {
+    console.log(`[vttLifecycle] Valid VTT already exists for ${videoLabel}: ${pairedVtt}`);
+    if (generateDescription && video?.id) {
+      try {
+        const [rows] = await pool.execute('SELECT * FROM videos WHERE id = ? LIMIT 1', [video.id]);
+        const fullVideo = rows[0] || video;
+        const descResult = await tryGenerateDescriptionAfterCaption(fullVideo, {
+          force: forceDescription || replace,
+          vttPath: pairedVtt
+        });
+        if (!descResult) {
+          await setAiStatus(video.id, 'done');
+        }
+      } catch (err) {
+        console.error(`[vttLifecycle] Description generation failed for ${videoLabel}:`, err.message);
+      }
+    }
     return pairedVtt;
   }
 
-  await ensureDirectoryExists(SUBTITLES_TEMP_DIR);
-  const tempVtt = path.join(SUBTITLES_TEMP_DIR, `_gen_${video.video_id}_${Date.now()}.vtt`);
+  if (video?.id) {
+    await setAiStatus(video.id, 'processing');
+  }
 
-  await generateSubtitles(videoAbsolutePath, {
-    outputPath: tempVtt,
-    model: 'base',
-    language: null
-  });
+  console.log(`[vttLifecycle] Starting Whisper subtitle generation for ${videoLabel}…`);
 
-  const vttBuffer = await fsPromises.readFile(tempVtt);
-  const saved = await saveVttBesideVideo(video.video_id, videoAbsolutePath, vttBuffer);
-  await fsPromises.unlink(tempVtt).catch(() => {});
+  let saved;
+  try {
+    await ensureDirectoryExists(SUBTITLES_TEMP_DIR);
+    const tempVtt = path.join(SUBTITLES_TEMP_DIR, `_gen_${video.video_id}_${Date.now()}.vtt`);
 
-  if (generateDescription) {
+    await generateSubtitles(videoAbsolutePath, {
+      outputPath: tempVtt,
+      model: 'base',
+      language: null
+    });
+
+    const vttBuffer = await fsPromises.readFile(tempVtt);
+    saved = await saveVttBesideVideo(video.video_id, videoAbsolutePath, vttBuffer);
+    await fsPromises.unlink(tempVtt).catch(() => {});
+
+    console.log(`[vttLifecycle] ✅ Subtitles saved for ${videoLabel}: ${saved.absolutePath}`);
+  } catch (err) {
+    console.error(`[vttLifecycle] ❌ Subtitle generation failed for ${videoLabel}:`, err.message);
+    if (video?.id) {
+      await setAiStatus(video.id, 'failed').catch(() => {});
+    }
+    throw err;
+  }
+
+  if (generateDescription && video?.id) {
     try {
       const [rows] = await pool.execute('SELECT * FROM videos WHERE video_id = ? LIMIT 1', [video.video_id]);
       const fullVideo = rows[0] || video;
-      await tryGenerateDescriptionAfterCaption(fullVideo, { force: forceDescription || replace });
+      const descResult = await tryGenerateDescriptionAfterCaption(fullVideo, {
+        force: forceDescription || replace,
+        vttPath: saved.absolutePath
+      });
+      if (!descResult) {
+        await setAiStatus(video.id, 'done');
+      }
     } catch (err) {
-      console.warn(`[vttLifecycle] Description skipped: ${err.message}`);
+      console.error(`[vttLifecycle] ❌ Description generation failed for ${videoLabel}:`, err.message);
     }
+  } else if (video?.id) {
+    await setAiStatus(video.id, 'done').catch(() => {});
   }
 
   return saved.absolutePath;
@@ -208,11 +252,27 @@ export async function ensureVttFromVideo(video) {
 }
 
 export function scheduleVttGeneration(video, videoAbsolutePath, options = {}) {
+  const videoLabel = video?.video_id || 'unknown';
+  console.log(`[vttLifecycle] Scheduled background VTT generation for ${videoLabel}`);
+
+  if (video?.id) {
+    setAiStatus(video.id, 'processing').catch(() => {});
+    markVideoInFlight(video.id);
+  }
+
   (async () => {
     try {
       await generateVttFromVideo(video, videoAbsolutePath, options);
+      console.log(`[vttLifecycle] ✅ Background pipeline complete for ${videoLabel}`);
     } catch (err) {
-      console.error(`[vttLifecycle] Failed for ${video.video_id}:`, err.message);
+      console.error(`[vttLifecycle] ❌ Background pipeline failed for ${videoLabel}:`, err.message);
+      if (video?.id) {
+        await setAiStatus(video.id, 'failed').catch(() => {});
+      }
+    } finally {
+      if (video?.id) {
+        releaseVideoInFlight(video.id);
+      }
     }
   })();
 }

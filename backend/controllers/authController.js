@@ -1,13 +1,14 @@
 import bcrypt from 'bcryptjs';
 import pool from '../config/database.js';
-import { generateToken } from '../middleware/auth.js';
+import config from '../config/config.js';
+import { generateToken, getAuthCookieOptions } from '../middleware/auth.js';
 
 /**
  * Admin login
  */
 export async function login(req, res) {
   try {
-    const { username, password } = req.body;
+    const { username, password, rememberMe = false } = req.body;
     
     // Strict validation - check for existence and non-empty strings
     if (!username || !password) {
@@ -95,10 +96,11 @@ export async function login(req, res) {
       );
     }
     
-    const token = generateToken(user.id || trimmedUsername);
-    
+    const token = generateToken(user.id || trimmedUsername, Boolean(rememberMe));
+
+    res.cookie(config.auth.cookieName, token, getAuthCookieOptions(Boolean(rememberMe)));
+
     res.json({
-      token,
       user: {
         id: user.id,
         username: user.username,
@@ -125,6 +127,25 @@ export async function verifyToken(req, res) {
     valid: true,
     user: req.user
   });
+}
+
+/**
+ * Session status check endpoint.
+ * Always returns 200 to avoid noisy 401s for guests.
+ */
+export async function sessionStatus(req, res) {
+  res.json({
+    valid: Boolean(req.user),
+    user: req.user || null
+  });
+}
+
+/**
+ * Log out — clears the httpOnly auth cookie
+ */
+export async function logout(req, res) {
+  res.clearCookie(config.auth.cookieName, getAuthCookieOptions(false));
+  res.json({ success: true });
 }
 
 

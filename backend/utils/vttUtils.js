@@ -1,4 +1,5 @@
 import fs from 'fs';
+import fsPromises from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../config/database.js';
@@ -96,4 +97,24 @@ export function extractText(vttContent) {
     .join(' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Load plain transcript text from a video's VTT file (for admin display / AI input).
+ */
+export async function getSubtitleTranscriptForVideo(videoId, maxLength = 4000) {
+  const vttPath = await resolveVttPath(videoId);
+  if (!vttPath) return null;
+
+  const { isVttValid } = await import('./vttLifecycle.js');
+  if (!(await isVttValid(vttPath))) return null;
+
+  const content = await fsPromises.readFile(vttPath, 'utf8');
+  const text = extractText(content);
+  if (!text) return null;
+
+  if (maxLength > 0 && text.length > maxLength) {
+    return `${text.slice(0, maxLength)}…`;
+  }
+  return text;
 }
