@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import config from '../config/config.js';
 import * as videoService from '../services/videoService.js';
 import * as redirectService from '../services/redirectService.js';
+import * as captionService from '../services/captionService.js';
 import pool from '../config/database.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -45,11 +46,54 @@ function getContentType(filePath) {
 }
 
 /**
+ * Build a public URL for a caption file from its stored path.
+ */
+function buildCaptionPublicUrl(baseUrl, caption) {
+  if (!caption) return null;
+
+  if (caption.video_id) {
+    return `${baseUrl}/api/captions/${caption.video_id}/file?lang=${encodeURIComponent(caption.language || 'en')}`;
+  }
+
+  if (!caption.file_path) return null;
+
+  let filePath = caption.file_path;
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
+
+  if (filePath.startsWith('/')) {
+    filePath = filePath.substring(1);
+  }
+
+  if (filePath.startsWith('captions/') || filePath.startsWith('my-storage/') || filePath.startsWith('misc/')) {
+    return `${baseUrl}/video-storage/${filePath}`;
+  }
+  if (filePath.startsWith('upload/') || filePath.startsWith('subtitles/')) {
+    return `${baseUrl}/${filePath}`;
+  }
+
+  return `${baseUrl}/video-storage/captions/${filePath}`;
+}
+
+/**
  * Generate HTML page with Video.js player
  */
-function generateVideoPlayerHTML(streamUrl, captionsUrl, videoTitle) {
-  const captionsTrack = captionsUrl ? `
-                <track kind="captions" src="${captionsUrl}" srclang="en" label="English" default />` : '';
+function generateVideoPlayerHTML(streamUrl, captions, videoTitle, baseUrl) {
+  const captionPayload = (Array.isArray(captions) ? captions : [])
+    .map((caption, index) => {
+      const captionUrl = buildCaptionPublicUrl(baseUrl, caption);
+      if (!captionUrl) return null;
+
+      const lang = caption.language || 'en';
+      return {
+        src: captionUrl,
+        srclang: lang,
+        label: caption.label || lang.toUpperCase(),
+        default: index === 0 || lang === 'en'
+      };
+    })
+    .filter(Boolean);
   
   return `<!DOCTYPE html>
 <html lang="en">
@@ -155,7 +199,6 @@ function generateVideoPlayerHTML(streamUrl, captionsUrl, videoTitle) {
                 data-setup='{}'
             >
                 <source src="${streamUrl}" type="video/mp4" />
-                ${captionsTrack}
             </video>
         </div>
     </div>
@@ -172,7 +215,7 @@ function generateVideoPlayerHTML(streamUrl, captionsUrl, videoTitle) {
 
     <script>
         const STREAM_URL = "${streamUrl}";
-        const CAPTIONS_URL = ${captionsUrl ? `"${captionsUrl}"` : 'null'};
+        const CAPTIONS = ${JSON.stringify(captionPayload)};
 
         const player = videojs('video-player', {
             fluid: true,
@@ -180,31 +223,53 @@ function generateVideoPlayerHTML(streamUrl, captionsUrl, videoTitle) {
             aspectRatio: '16:9',
             controls: true,
             preload: 'auto',
+            controlBar: {
+                children: [
+                    'playToggle',
+                    'volumePanel',
+                    'progressControl',
+                    'remainingTimeDisplay',
+                    'spacer',
+                    'subsCapsButton',
+                    'fullscreenToggle'
+                ]
+            },
             html5: {
                 vhs: {
                     overrideNative: true,
                     enableLowInitialPlaylist: true,
                     smoothQualityChange: true
-                }
+                },
+                nativeTextTracks: false
             }
         });
 
         // Set video source
         player.src(STREAM_URL);
 
-        // Add captions
-        if (CAPTIONS_URL) {
+        // Add caption tracks when available
+        CAPTIONS.forEach(function(caption) {
             player.addRemoteTextTrack({
                 kind: 'captions',
-                src: CAPTIONS_URL,
-                srclang: 'en',
-                label: 'English',
-                default: true
+                src: caption.src,
+                srclang: caption.srclang,
+                label: caption.label,
+                default: caption.default
             }, false);
-        }
+        });
 
         // Initialize when ready
         player.ready(function() {
+            // Show CC button when subtitles are available
+            const subsBtn = player.controlBar.getChild('subsCapsButton');
+            if (subsBtn) {
+                if (CAPTIONS.length > 0) {
+                    subsBtn.show();
+                } else {
+                    subsBtn.hide();
+                }
+            }
+
             // Enable quality selector if available
             if (player.qualityLevels && player.hlsQualitySelector) {
                 try {
@@ -327,6 +392,10 @@ export async function streamVideo(req, res) {
         console.error('Error fetching video for HTML player:', videoError);
         video = null;
       }
+
+      if (video?.status === 'deleted') {
+        video = null;
+      }
       
       if (!video) {
         setCORSHeaders(req, res);
@@ -353,17 +422,17 @@ export async function streamVideo(req, res) {
       const streamUrl = `${baseUrl}/api/s/${lookupId}`;
       const videoTitle = video.title || 'Video Player';
       
-      // Get captions URL if available
-      let captionsUrl = '';
-      if (video.captions && Array.isArray(video.captions) && video.captions.length > 0) {
-        const firstCaption = video.captions[0];
-        if (firstCaption.url) {
-          captionsUrl = firstCaption.url;
-        }
+      // Load captions for CC / subtitles in the HTML player
+      let captions = [];
+      try {
+        captions = await captionService.getCaptionsByVideoId(video.video_id);
+        console.log(`[Stream HTML] Loaded ${captions.length} caption(s) for ${video.video_id}`);
+      } catch (captionError) {
+        console.warn('[Stream HTML] Could not load captions:', captionError.message);
       }
       
       // Generate HTML with Video.js player
-      const html = generateVideoPlayerHTML(streamUrl, captionsUrl, videoTitle);
+      const html = generateVideoPlayerHTML(streamUrl, captions, videoTitle, baseUrl);
       
       setCORSHeaders(req, res);
       res.setHeader('Content-Type', 'text/html');
@@ -429,6 +498,11 @@ export async function streamVideo(req, res) {
           }
         }
       }
+    }
+    
+    if (video?.status === 'deleted') {
+      console.log(`[Stream] Refusing to stream deleted video: ${video.video_id}`);
+      video = null;
     }
     
     if (!video) {

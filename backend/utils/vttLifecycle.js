@@ -15,6 +15,7 @@ import { resolveLocalVideoPath } from './videoPathResolver.js';
 import { tryGenerateDescriptionAfterCaption } from './afterCaptionSaved.js';
 import { setAiStatus } from './aiStatus.js';
 import { markVideoInFlight, releaseVideoInFlight } from '../utils/vttInFlight.js';
+import { normalizeVttToLines } from './vttLineFormat.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -99,7 +100,9 @@ export function relativePathForCoLocatedVtt(videoAbsolutePath) {
 export async function saveVttBesideVideo(videoId, videoAbsolutePath, vttContent) {
   const vttAbsolute = vttPathForVideoPath(videoAbsolutePath);
   await ensureDirectoryExists(path.dirname(vttAbsolute));
-  await fsPromises.writeFile(vttAbsolute, vttContent);
+  const raw = Buffer.isBuffer(vttContent) ? vttContent.toString('utf8') : String(vttContent);
+  const normalized = normalizeVttToLines(raw);
+  await fsPromises.writeFile(vttAbsolute, normalized, 'utf8');
 
   const relativeVtt = relativePathForCoLocatedVtt(videoAbsolutePath);
 

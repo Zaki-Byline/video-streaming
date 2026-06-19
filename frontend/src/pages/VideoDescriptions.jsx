@@ -358,8 +358,9 @@ function VideoDescriptions() {
         <div>
           <h1>Video descriptions</h1>
           <p>
-            Review AI-generated descriptions sourced from subtitle transcripts. Descriptions are
-            written by Gemini or OpenAI only — manual edits aren&apos;t supported here.
+            AI writes short, natural descriptions from each video&apos;s subtitle transcript
+            (project, lesson, or story). Powered by Gemini or OpenAI — regenerate anytime; manual
+            edits aren&apos;t supported here.
           </p>
         </div>
         <div className={`vd-live-pulse${isLive ? ' is-active' : ''}`} aria-live="polite">

@@ -61,7 +61,14 @@ app.use('/video-storage', express.static(path.join(__dirname, '../video-storage'
 app.use('/qr-codes', express.static(path.join(__dirname, '../qr-codes')));
 app.use('/thumbnails', express.static(path.join(__dirname, '../video-storage/thumbnails')));
 // Serve uploaded videos from backend/upload folder
-app.use('/upload', express.static(path.join(__dirname, 'upload')));
+app.use('/upload', express.static(path.join(__dirname, 'upload'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.vtt')) {
+      res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+  }
+}));
 // Serve subtitles folder (for generated subtitles)
 app.use('/subtitles', express.static(path.join(__dirname, '../subtitles'), {
   setHeaders: (res, path) => {

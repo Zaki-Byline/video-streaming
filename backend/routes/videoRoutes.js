@@ -63,6 +63,9 @@ router.get('/redirect-info/:slug', async (req, res) => {
     
     // First, try to get video by redirect_slug (most common case for direct streaming)
     let video = await videoService.getVideoByRedirectSlug(slug, true);
+    if (video?.status === 'deleted') {
+      video = null;
+    }
     
     // If not found, try to get redirect from redirects table
     let redirect = null;
@@ -76,6 +79,9 @@ router.get('/redirect-info/:slug', async (req, res) => {
           const pathParts = url.pathname.split('/');
           const videoId = pathParts[pathParts.length - 1];
           video = await videoService.getVideoByVideoId(videoId, true);
+          if (video?.status === 'deleted') {
+            video = null;
+          }
         } catch (urlError) {
           console.log('Could not parse target URL:', urlError);
         }
