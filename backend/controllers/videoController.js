@@ -503,6 +503,10 @@ export async function getVideo(req, res) {
     if (!video) {
       return res.status(404).json({ error: 'Video not found' });
     }
+
+    if (video.status === 'deleted') {
+      return res.status(404).json({ error: 'Video not found' });
+    }
     
     // Fetch captions for this video
     let captions = [];

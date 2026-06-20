@@ -71,7 +71,7 @@ async function callGeminiModel(model, prompt, apiKey) {
     },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.6 }
+      generationConfig: { temperature: 0.5 }
     })
   });
 

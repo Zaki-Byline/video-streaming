@@ -1,5 +1,17 @@
 import multer from 'multer';
+import fs from 'fs/promises';
 import * as captionService from '../services/captionService.js';
+import * as videoService from '../services/videoService.js';
+import { resolveVttPath } from '../utils/vttUtils.js';
+import { normalizeVttToLines } from '../utils/vttLineFormat.js';
+
+async function assertActiveVideo(videoId) {
+  const video = await videoService.getVideoByVideoId(videoId, true);
+  if (!video || video.status === 'deleted') {
+    return null;
+  }
+  return video;
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -51,11 +63,46 @@ export const uploadCaption = [
 ];
 
 /**
+ * Serve VTT caption file for a video (used by HTML5 video <track> elements).
+ */
+export async function serveCaptionFile(req, res) {
+  try {
+    const { videoId } = req.params;
+    const video = await assertActiveVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const vttPath = await resolveVttPath(videoId);
+
+    if (!vttPath) {
+      return res.status(404).json({ error: 'Caption file not found' });
+    }
+
+    const rawVtt = await fs.readFile(vttPath, 'utf8');
+    const lineVtt = normalizeVttToLines(rawVtt);
+
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.send(lineVtt);
+  } catch (error) {
+    console.error('Serve caption file error:', error);
+    res.status(500).json({ error: 'Failed to serve caption file' });
+  }
+}
+
+/**
  * Get captions for video
  */
 export async function getCaptions(req, res) {
   try {
     const { videoId } = req.params;
+    const video = await assertActiveVideo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
     const captions = await captionService.getCaptionsByVideoId(videoId);
     res.json(captions);
   } catch (error) {

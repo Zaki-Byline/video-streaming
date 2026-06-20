@@ -89,19 +89,21 @@ export async function uploadCaption(videoId, language, fileBuffer, filename) {
  * Get captions for a video (DB rows + co-located VTT fallback).
  */
 export async function getCaptionsByVideoId(videoId) {
+  const [videoRows] = await pool.execute(
+    'SELECT video_id, file_path, redirect_slug, status FROM videos WHERE video_id = ? LIMIT 1',
+    [videoId]
+  );
+  const video = videoRows[0];
+  if (!video || video.status === 'deleted') {
+    return [];
+  }
+
   const query = 'SELECT * FROM captions WHERE video_id = ?';
   const [rows] = await pool.execute(query, [videoId]);
 
   if (rows.length > 0) {
     return rows;
   }
-
-  const [videoRows] = await pool.execute(
-    'SELECT video_id, file_path, redirect_slug FROM videos WHERE video_id = ? LIMIT 1',
-    [videoId]
-  );
-  const video = videoRows[0];
-  if (!video) return rows;
 
   const coLocated = resolveCoLocatedVttAbsolute(video);
   if (!coLocated) return rows;

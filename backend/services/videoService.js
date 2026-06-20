@@ -791,6 +791,8 @@ export async function getAllVideos(filters = {}) {
   if (filters.status && filters.status.trim()) {
     query += ' AND status = ?';
     params.push(filters.status.trim());
+  } else {
+    query += ' AND status != "deleted"';
   }
   
   // Filter by version (supports both numeric and string versions, including floating point)
@@ -1343,6 +1345,18 @@ export async function deleteVideo(id) {
   const video = await getVideoById(id);
   if (!video) {
     return false;
+  }
+
+  // Remove subtitle files and caption DB rows when video is deleted
+  try {
+    const { deleteVttForVideo } = await import('../utils/vttLifecycle.js');
+    const vttResult = await deleteVttForVideo(video);
+    console.log(
+      `[deleteVideo] Removed subtitles for ${video.video_id}: ` +
+      `${vttResult.filesDeleted} file(s)`
+    );
+  } catch (vttError) {
+    console.warn(`[deleteVideo] Could not remove subtitles for ${video.video_id}:`, vttError.message);
   }
 
   // Soft delete: Set status to 'deleted' instead of hard deleting

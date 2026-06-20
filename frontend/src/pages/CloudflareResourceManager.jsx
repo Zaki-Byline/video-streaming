@@ -310,9 +310,6 @@ function MyStorageManager() {
         validationErrors.push(`File ${index + 1} (${item.file.name}): Lesson is required`);
       }
       // Module field is now optional - removed validation
-      if (!item.status || !item.status.trim()) {
-        validationErrors.push(`File ${index + 1} (${item.file.name}): Status is required`);
-      }
     });
 
     if (validationErrors.length > 0) {
@@ -928,38 +925,30 @@ function MyStorageManager() {
               <table className="min-w-full">
                 <thead className="bg-gradient-to-r from-slate-50 to-emerald-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Draft ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[300px]">Title</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Subject</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Grade</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Unit</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Lesson</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Module</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Version</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Description</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Upload Progress</th>
-                    <th className="px-6 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[420px]">Title</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Subject</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[120px]">Grade</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[140px]">Unit</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[140px]">Lesson</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Module</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Version</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Upload Progress</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
                   {stagedFiles.map((item, idx) => (
                     <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                      <td className="px-6 py-3">
-                        <div className="text-xs font-mono text-slate-800 bg-slate-100 px-3 py-2 rounded-lg">
-                          {item.videoId}
-                            </div>
-                      </td>
-                      <td className="px-6 py-3">
+                      <td className="px-4 py-3">
                         <input
                           type="text"
                           value={item.title}
                           onChange={(e) => updateStagedField(item.id, 'title', e.target.value)}
-                          className="w-full min-w-[300px] px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[420px] px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Enter full title..."
                         />
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="px-4 py-3">
                         <input
                           type="text"
                           value={item.subject || item.course || ''}
@@ -971,31 +960,34 @@ function MyStorageManager() {
                           placeholder="Subject name"
                         />
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="px-4 py-3">
                         <input
                           type="text"
                           value={item.grade}
                           onChange={(e) => updateStagedField(item.id, 'grade', e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[120px] px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Grade"
                         />
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="px-4 py-3">
                         <input
                           type="text"
                           value={item.unit}
                           onChange={(e) => updateStagedField(item.id, 'unit', e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[140px] px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Unit"
                         />
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="px-4 py-3">
                         <input
                           type="text"
                           value={item.lesson}
                           onChange={(e) => updateStagedField(item.id, 'lesson', e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[140px] px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Lesson"
                         />
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="px-4 py-3">
                         <input
                           type="text"
                           value={item.module || ''}
@@ -1005,7 +997,7 @@ function MyStorageManager() {
                           style={{ color: item.module ? '#1e293b' : '#64748b' }}
                         />
                       </td>
-                      <td className="px-6 py-3">
+                      <td className="px-4 py-3">
                         <input
                           type="text"
                           value={item.version || ''}
@@ -1015,76 +1007,7 @@ function MyStorageManager() {
                           style={{ color: item.version ? '#1e293b' : '#64748b' }}
                         />
                       </td>
-                      <td className="px-6 py-3">
-                        <div className="relative">
-                          <select
-                            value={item.status || 'active'}
-                            onChange={(e) => updateStagedField(item.id, 'status', e.target.value)}
-                            className={`w-full px-3 py-2.5 text-sm font-semibold rounded-lg border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 cursor-pointer ${
-                              item.status === 'active' 
-                                ? 'bg-blue-100 border-blue-500 text-blue-900 hover:bg-blue-200' 
-                                : item.status === 'inactive'
-                                ? 'bg-orange-100 border-orange-500 text-orange-900 hover:bg-orange-200'
-                                : 'bg-red-100 border-red-500 text-red-900 hover:bg-red-200'
-                            }`}
-                            style={{
-                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23334155' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-                              backgroundRepeat: 'no-repeat',
-                              backgroundPosition: 'right 0.75rem center',
-                              backgroundSize: '12px',
-                              paddingRight: '2.5rem',
-                              appearance: 'none',
-                              WebkitAppearance: 'none',
-                              MozAppearance: 'none',
-                              color: item.status === 'active' ? '#1e3a8a' : item.status === 'inactive' ? '#9a3412' : '#991b1b'
-                            }}
-                          >
-                            <option 
-                              value="active"
-                              style={{ 
-                                backgroundColor: '#ffffff', 
-                                color: '#1e3a8a',
-                                padding: '0.5rem',
-                                fontWeight: '600'
-                              }}
-                            >
-                              Active
-                            </option>
-                            <option 
-                              value="inactive"
-                              style={{ 
-                                backgroundColor: '#ffffff', 
-                                color: '#9a3412',
-                                padding: '0.5rem',
-                                fontWeight: '600'
-                              }}
-                            >
-                              Inactive
-                            </option>
-                            <option 
-                              value="deleted"
-                              style={{ 
-                                backgroundColor: '#ffffff', 
-                                color: '#991b1b',
-                                padding: '0.5rem',
-                                fontWeight: '600'
-                              }}
-                            >
-                              Deleted
-                            </option>
-                          </select>
-                        </div>
-                      </td>
-                      <td className="px-6 py-3">
-                        <textarea
-                          value={item.description}
-                          onChange={(e) => updateStagedField(item.id, 'description', e.target.value)}
-                          rows={2}
-                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                          placeholder="Enter description..."
-                        />
-                      </td>
-                      <td className="px-6 py-3">
+                      <td className="px-4 py-3">
                         {uploading && individualProgress[item.id] !== undefined ? (
                           <div className="w-full">
                             <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden mb-1">
@@ -1105,7 +1028,7 @@ function MyStorageManager() {
                           <div className="text-xs text-slate-400 text-center">-</div>
                         )}
                       </td>
-                      <td className="px-6 py-3 text-center">
+                      <td className="px-4 py-3 text-center">
                             <button
                           onClick={() => removeStaged(item.id)}
                           disabled={uploading}

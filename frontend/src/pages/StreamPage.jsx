@@ -26,7 +26,24 @@ function StreamPage() {
         try {
           response = await api.get(`/videos/${videoId}`);
           if (response.data) {
-            setVideo(response.data);
+            const videoData = response.data;
+
+            if (!Array.isArray(videoData.captions)) {
+              videoData.captions = [];
+            }
+
+            if ((!videoData.captions || videoData.captions.length === 0) && videoData.video_id) {
+              try {
+                const captionsResponse = await api.get(`/captions/${videoData.video_id}`);
+                if (captionsResponse.data && Array.isArray(captionsResponse.data)) {
+                  videoData.captions = captionsResponse.data;
+                }
+              } catch {
+                videoData.captions = [];
+              }
+            }
+
+            setVideo(videoData);
             setLoading(false);
             return;
           }
@@ -44,7 +61,24 @@ function StreamPage() {
             
             response = await api.get(`/videos/${actualVideoId}`);
             if (response.data) {
-              setVideo(response.data);
+              const videoData = response.data;
+
+              if (!Array.isArray(videoData.captions)) {
+                videoData.captions = [];
+              }
+
+              if ((!videoData.captions || videoData.captions.length === 0) && videoData.video_id) {
+                try {
+                  const captionsResponse = await api.get(`/captions/${videoData.video_id}`);
+                  if (captionsResponse.data && Array.isArray(captionsResponse.data)) {
+                    videoData.captions = captionsResponse.data;
+                  }
+                } catch {
+                  videoData.captions = [];
+                }
+              }
+
+              setVideo(videoData);
               setLoading(false);
               return;
             }

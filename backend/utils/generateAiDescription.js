@@ -18,30 +18,46 @@ import { isVttValid } from './vttLifecycle.js';
 import { extractCaptionLines } from './generateDescriptionFromVtt.js';
 import { setAiStatus } from './aiStatus.js';
 
-const LIBRARY_DESCRIPTION_PROMPT = `Summarize the following video transcript into a concise, engaging 2-3 sentence description suitable for an educational/video library portal.
+const LIBRARY_DESCRIPTION_PROMPT = `Write a video library description from the subtitle transcript below.
 
-Rules:
-- Write 2-3 complete sentences only
-- Clear, student-friendly language
-- No timestamps or speaker labels
-- Do not mention "transcript" or "video"
-- Focus on what the viewer will learn
+STEP 1 — Pick the content type (from transcript only; do not label it in output):
+• Project — science, electronics, coding, robotics, engineering, or hands-on build
+• Lesson — concept, skill, emotion, or educational topic
+• Story — story, fairy tale, or fictional narrative
 
-Transcript:
-----------------
-{{TRANSCRIPT}}
-----------------`;
+STEP 2 — Write 80–150 words in a natural human voice, like someone explaining after watching.
 
-function buildPrompt(transcript) {
-  return LIBRARY_DESCRIPTION_PROMPT.replace('{{TRANSCRIPT}}', transcript.slice(0, 12000));
+How to write:
+• Simple, casual, easy to read — mix short and medium sentences
+• Rewrite in your own words; never copy transcript sentences
+• Use only facts from the transcript; title is for context only
+• Do not invent parts, characters, or ideas not in the transcript
+• Short paragraphs are fine
+• Output the description only — no headings or type labels
+
+Banned phrases (and similar AI/formal wording):
+Discover how, Learn how, Explore, Dive into, This exciting project, In this project we will,
+This content focuses on, The video explores, This segment discusses, The video begins,
+It then explains, In conclusion.
+
+VIDEO TITLE:
+{{VIDEO_TITLE}}
+
+SUBTITLE TRANSCRIPT:
+{{TRANSCRIPT}}`;
+
+function buildPrompt(transcript, videoTitle = '') {
+  return LIBRARY_DESCRIPTION_PROMPT
+    .replace('{{VIDEO_TITLE}}', (videoTitle || 'Untitled').trim())
+    .replace('{{TRANSCRIPT}}', transcript.slice(0, 12000));
 }
 
-async function generateWithOpenAI(transcript) {
+async function generateWithOpenAI(transcript, videoTitle) {
   const openai = getOpenAIClient();
   const completion = await openai.chat.completions.create({
     model: config.openai.model,
-    messages: [{ role: 'user', content: buildPrompt(transcript) }],
-    temperature: 0.6
+    messages: [{ role: 'user', content: buildPrompt(transcript, videoTitle) }],
+    temperature: 0.5
   });
   const description = completion.choices[0]?.message?.content?.trim();
   if (!description) throw new Error('OpenAI returned an empty description');
@@ -52,7 +68,7 @@ async function generateWithOpenAI(transcript) {
  * Generate description using configured AI provider (Gemini preferred; OpenAI fallback on quota).
  * @returns {Promise<{ description: string, provider: 'gemini' | 'openai' }>}
  */
-export async function generateLibraryDescription(transcript) {
+export async function generateLibraryDescription(transcript, videoTitle = '') {
   const primary = getAiDescriptionProvider();
 
   if (!primary) {
@@ -61,7 +77,7 @@ export async function generateLibraryDescription(transcript) {
     );
   }
 
-  const prompt = buildPrompt(transcript);
+  const prompt = buildPrompt(transcript, videoTitle);
 
   if (primary === 'gemini' || isGeminiConfigured()) {
     try {
@@ -72,7 +88,7 @@ export async function generateLibraryDescription(transcript) {
       if (isOpenAiConfigured()) {
         console.log('[generateAiDescription] Falling back to OpenAI…');
         try {
-          const description = await generateWithOpenAI(transcript);
+          const description = await generateWithOpenAI(transcript, videoTitle);
           return { description, provider: 'openai' };
         } catch (openaiError) {
           throw new Error(
@@ -86,7 +102,7 @@ export async function generateLibraryDescription(transcript) {
   }
 
   try {
-    const description = await generateWithOpenAI(transcript);
+    const description = await generateWithOpenAI(transcript, videoTitle);
     return { description, provider: 'openai' };
   } catch (error) {
     throw new Error(formatOpenAIError(error));
@@ -123,7 +139,10 @@ export async function generateAiDescriptionForVideo(video) {
   await setAiStatus(video.id, 'processing');
 
   try {
-    const { description, provider: usedProvider } = await generateLibraryDescription(transcript);
+    const { description, provider: usedProvider } = await generateLibraryDescription(
+      transcript,
+      video.title || ''
+    );
 
     await pool.execute(
       `UPDATE videos SET description = ?, description_source = ?, ai_status = 'done' WHERE id = ?`,

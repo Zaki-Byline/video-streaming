@@ -5,6 +5,7 @@ import path from 'path';
 import { isOpenAiConfigured } from '../config/loadEnv.js';
 import { getOpenAIClient, formatOpenAIError } from './openaiClient.js';
 import { resolveFfmpegPath } from './resolveFfmpeg.js';
+import { normalizeVttToLines } from './vttLineFormat.js';
 
 const execAsync = promisify(exec);
 const WHISPER_MAX_BYTES = 24 * 1024 * 1024; // 25 MB API limit, use 24 MB buffer
@@ -32,7 +33,10 @@ async function transcribeWithLocalWhisper(audioPath, model, language) {
   await execAsync(command);
 
   const audioName = path.basename(audioPath, path.extname(audioPath));
-  return path.join(outputDir, `${audioName}.vtt`);
+  const vttPath = path.join(outputDir, `${audioName}.vtt`);
+  const raw = await fs.promises.readFile(vttPath, 'utf8');
+  await fs.promises.writeFile(vttPath, normalizeVttToLines(raw), 'utf8');
+  return vttPath;
 }
 
 async function compressAudioForWhisper(audioPath) {
@@ -82,7 +86,7 @@ async function transcribeWithOpenAI(audioPath) {
     const outputDir = path.dirname(audioPath);
     const audioName = path.basename(audioPath, path.extname(audioPath));
     const vttPath = path.join(outputDir, `${audioName}.vtt`);
-    await fs.promises.writeFile(vttPath, transcription, 'utf8');
+    await fs.promises.writeFile(vttPath, normalizeVttToLines(transcription), 'utf8');
 
     if (uploadPath !== audioPath && fs.existsSync(uploadPath)) {
       fs.unlinkSync(uploadPath);
@@ -96,6 +100,7 @@ async function transcribeWithOpenAI(audioPath) {
 
 /**
  * Transcribe audio to VTT — local Whisper if available, else OpenAI Whisper API.
+ * Output uses full-sentence cues (line by line), not word-by-word.
  */
 export async function transcribeAudioToVtt(audioPath, options = {}) {
   const { model = 'base', language = null } = options;

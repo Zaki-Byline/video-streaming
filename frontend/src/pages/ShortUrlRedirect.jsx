@@ -158,6 +158,12 @@ function ShortUrlRedirect() {
           return;
         }
 
+        if (videoData.status === 'deleted') {
+          setError('Video not found');
+          setLoading(false);
+          return;
+        }
+
         // Ensure captions array exists (even if empty)
         if (!Array.isArray(videoData.captions)) {
           videoData.captions = [];
