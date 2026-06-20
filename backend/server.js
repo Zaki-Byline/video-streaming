@@ -31,21 +31,23 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    // Allow requests from frontend URL or any localhost/127.0.0.1
     const allowedOrigins = [
-      config.urls.frontend,
+      ...config.urls.frontendOrigins,
       'http://localhost:5173',
       'http://localhost:3000',
       'http://127.0.0.1:5173',
       'http://127.0.0.1:3000',
       'https://kodeit-videos.legatolxp.online',
       'https://qr.kodeit.online',
+      'https://qr-test.kodeitglobal.com',
+      'https://qr.kodeitglobal.com',
+      'https://qr-test.kodeit.digital',
     ];
     
     if (allowedOrigins.includes(origin) || origin.includes('localhost') || origin.includes('127.0.0.1')) {
       callback(null, true);
     } else {
-      callback(null, true); // Allow all origins for development
+      callback(null, true);
     }
   },
   credentials: true,

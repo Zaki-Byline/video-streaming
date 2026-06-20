@@ -98,9 +98,11 @@ export async function login(req, res) {
     
     const token = generateToken(user.id || trimmedUsername, Boolean(rememberMe));
 
-    res.cookie(config.auth.cookieName, token, getAuthCookieOptions(Boolean(rememberMe)));
+    res.cookie(config.auth.cookieName, token, getAuthCookieOptions(Boolean(rememberMe), req));
 
     res.json({
+      // Bearer token for cross-domain setups where browsers block third-party cookies
+      token,
       user: {
         id: user.id,
         username: user.username,
@@ -134,6 +136,10 @@ export async function verifyToken(req, res) {
  * Always returns 200 to avoid noisy 401s for guests.
  */
 export async function sessionStatus(req, res) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   res.json({
     valid: Boolean(req.user),
     user: req.user || null
@@ -144,7 +150,7 @@ export async function sessionStatus(req, res) {
  * Log out — clears the httpOnly auth cookie
  */
 export async function logout(req, res) {
-  res.clearCookie(config.auth.cookieName, getAuthCookieOptions(false));
+  res.clearCookie(config.auth.cookieName, getAuthCookieOptions(false, req));
   res.json({ success: true });
 }
 

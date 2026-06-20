@@ -5,7 +5,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Logo from '../components/ui/Logo';
 import api from '../services/api';
-import { verifySession } from '../utils/auth';
+import { verifySession, setAuthToken } from '../utils/auth';
 
 /**
  * Admin Login Page
@@ -79,10 +79,11 @@ function AdminLogin() {
         rememberMe
       });
 
-      if (!response.data?.user) {
+      if (!response.data?.user || !response.data?.token) {
         throw new Error('Invalid response from server');
       }
 
+      setAuthToken(response.data.token, rememberMe);
       setSuccess(true);
       
       // Navigate to intended page or default to admin dashboard
