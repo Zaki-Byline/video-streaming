@@ -9,18 +9,56 @@ function getCookieValue(req, name) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-export function getAuthCookieOptions(rememberMe = false) {
+/**
+ * True when the browser origin (e.g. qr-test.kodeitglobal.com) differs from the API host
+ * (e.g. qr-test.kodeit.digital). Cross-site cookies require SameSite=None and Secure.
+ */
+function getRequestClientHost(req) {
+  const origin = req?.headers?.origin;
+  if (origin) {
+    try {
+      return new URL(origin).host;
+    } catch {
+      // fall through
+    }
+  }
+
+  const referer = req?.headers?.referer;
+  if (referer) {
+    try {
+      return new URL(referer).host;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+export function isCrossOriginRequest(req) {
+  const clientHost = getRequestClientHost(req);
+  if (!clientHost) return false;
+
+  const apiHost = req.headers['x-forwarded-host'] || req.headers.host || req.hostname;
+  if (!apiHost) return false;
+
+  return clientHost !== apiHost.split(',')[0].trim();
+}
+
+export function getAuthCookieOptions(rememberMe = false, req = null) {
   const isProduction = config.nodeEnv === 'production';
+  const crossOrigin = config.auth.crossOrigin || (req && isCrossOriginRequest(req));
+  const useCrossSiteCookies = crossOrigin && (isProduction || req?.secure);
+
   const options = {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction && config.auth.crossOrigin ? 'none' : 'lax',
-    path: '/'
+    secure: useCrossSiteCookies || isProduction,
+    sameSite: useCrossSiteCookies ? 'none' : 'lax',
+    path: '/',
+    maxAge: rememberMe
+      ? 7 * 24 * 60 * 60 * 1000
+      : 8 * 60 * 60 * 1000
   };
-
-  if (rememberMe) {
-    options.maxAge = 7 * 24 * 60 * 60 * 1000;
-  }
 
   return options;
 }

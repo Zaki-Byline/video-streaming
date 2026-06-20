@@ -37,6 +37,11 @@ export default {
   
   urls: {
     frontend: process.env.FRONTEND_URL || 'http://localhost:5173',
+    // Comma-separated list of allowed frontend origins for CORS (e.g. multiple domains)
+    frontendOrigins: (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:5173')
+      .split(',')
+      .map((url) => url.trim())
+      .filter(Boolean),
     base: process.env.BASE_URL || 'http://localhost:5000'
   },
 

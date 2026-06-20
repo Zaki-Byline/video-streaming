@@ -1,9 +1,7 @@
 import api from '../services/api';
+import { clearAuthToken } from './authToken';
 
-/** Remove legacy token storage from older versions */
-export function clearLegacyAuthToken() {
-  localStorage.removeItem('token');
-}
+export { setAuthToken, getAuthToken, clearAuthToken, clearLegacyAuthToken } from './authToken';
 
 export async function verifySession() {
   try {
@@ -15,7 +13,7 @@ export async function verifySession() {
 }
 
 export async function logout() {
-  clearLegacyAuthToken();
+  clearAuthToken();
   try {
     await api.post('/auth/logout');
   } catch {
