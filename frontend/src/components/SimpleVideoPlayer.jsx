@@ -162,6 +162,7 @@ function SimpleVideoPlayer({
         key={`${src}-${effectiveCaptions.map((c) => c.file_path || c.language).join('|')}`}
         ref={videoRef}
         className="w-full h-full"
+        crossOrigin="anonymous"
         controls
         controlsList="nodownload"
         preload="auto"
