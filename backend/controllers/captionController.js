@@ -83,7 +83,6 @@ export async function serveCaptionFile(req, res) {
     const lineVtt = normalizeVttToLines(rawVtt);
 
     res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
-    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'no-cache');
     return res.send(lineVtt);
   } catch (error) {
