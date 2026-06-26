@@ -925,13 +925,13 @@ function MyStorageManager() {
               <table className="min-w-full">
                 <thead className="bg-gradient-to-r from-slate-50 to-emerald-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[480px]">Title</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Subject</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[160px]">Grade</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[180px]">Unit</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[180px]">Lesson</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Module</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Version</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[300px]">Title</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[220px]">Subject</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[90px]">Grade</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[90px]">Unit</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[90px]">Lesson</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[100px]">Module</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[100px]">Version</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Upload Progress</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -944,7 +944,7 @@ function MyStorageManager() {
                           type="text"
                           value={item.title}
                           onChange={(e) => updateStagedField(item.id, 'title', e.target.value)}
-                          className="w-full min-w-[480px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[300px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Enter full title..."
                         />
                       </td>
@@ -956,7 +956,7 @@ function MyStorageManager() {
                             updateStagedField(item.id, 'subject', e.target.value);
                             updateStagedField(item.id, 'course', e.target.value); // Keep for backward compatibility
                           }}
-                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[220px] px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Subject name"
                         />
                       </td>
@@ -965,7 +965,7 @@ function MyStorageManager() {
                           type="text"
                           value={item.grade}
                           onChange={(e) => updateStagedField(item.id, 'grade', e.target.value)}
-                          className="w-full min-w-[160px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[90px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Grade"
                         />
                       </td>
@@ -974,7 +974,7 @@ function MyStorageManager() {
                           type="text"
                           value={item.unit}
                           onChange={(e) => updateStagedField(item.id, 'unit', e.target.value)}
-                          className="w-full min-w-[180px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[90px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Unit"
                         />
                       </td>
@@ -983,7 +983,7 @@ function MyStorageManager() {
                           type="text"
                           value={item.lesson}
                           onChange={(e) => updateStagedField(item.id, 'lesson', e.target.value)}
-                          className="w-full min-w-[180px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[90px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Lesson"
                         />
                       </td>
@@ -992,7 +992,7 @@ function MyStorageManager() {
                           type="text"
                           value={item.module || ''}
                           onChange={(e) => updateStagedField(item.id, 'module', e.target.value)}
-                          className="w-full px-3 py-2 text-sm bg-white border-2 border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-slate-900 placeholder:text-slate-400"
+                          className="w-full min-w-[100px] px-3 py-2 text-sm bg-white border-2 border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-slate-900 placeholder:text-slate-400"
                           placeholder="Module"
                           style={{ color: item.module ? '#1e293b' : '#64748b' }}
                         />
@@ -1002,7 +1002,7 @@ function MyStorageManager() {
                           type="text"
                           value={item.version || ''}
                           onChange={(e) => updateStagedField(item.id, 'version', e.target.value)}
-                          className="w-full px-3 py-2 text-sm bg-white border-2 border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-slate-900 placeholder:text-slate-400"
+                          className="w-full min-w-[100px] px-3 py-2 text-sm bg-white border-2 border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-slate-900 placeholder:text-slate-400"
                           placeholder="Version"
                           style={{ color: item.version ? '#1e293b' : '#64748b' }}
                         />
