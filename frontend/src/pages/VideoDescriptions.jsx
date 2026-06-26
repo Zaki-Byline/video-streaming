@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo, Fragment } from 'react';
-import { RefreshCw, Trash2, Search, Sparkles, Loader2, ChevronRight, X } from 'lucide-react';
+import { RefreshCw, Trash2, Search, Sparkles, Loader2, ChevronRight, X, Pencil, Download } from 'lucide-react';
 import api from '../services/api';
+import EditDescriptionModal from '../components/EditDescriptionModal';
 import './VideoDescriptions.css';
 
 const FILTERS_STORAGE_KEY = 'video_descriptions_filters_v1';
@@ -47,6 +48,15 @@ function isBulkEligible(video) {
   return !video.has_ai_description && video.has_vtt;
 }
 
+function SourceBadge({ source }) {
+  if (!source) return <span className="vd-src-badge vd-src-empty">EMPTY</span>;
+  const s = source.toUpperCase();
+  if (s === 'GEMINI') return <span className="vd-src-badge vd-src-gemini">GEMINI</span>;
+  if (s === 'OPENAI') return <span className="vd-src-badge vd-src-openai">OPENAI</span>;
+  if (s === 'MANUAL') return <span className="vd-src-badge vd-src-manual">MANUAL</span>;
+  return <span className="vd-src-badge vd-src-other">{s}</span>;
+}
+
 function badgeState(status) {
   if (status === 'Yes') return 'yes';
   if (status === 'Processing') return 'processing';
@@ -76,6 +86,7 @@ function VideoDescriptions() {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('info');
   const [expandedTranscripts, setExpandedTranscripts] = useState(new Set());
+  const [editModalVideo, setEditModalVideo] = useState(null);
   const [filterOptions, setFilterOptions] = useState({
     subjects: [],
     grades: [],
@@ -268,9 +279,45 @@ function VideoDescriptions() {
     }
   };
 
+  const runBulkClear = async (videoIds) => {
+    const count = videoIds.length;
+    if (!confirm(`Clear descriptions for ${count} selected video(s)? This is reversible via History.`)) return;
+    try {
+      setBulkGenerating(true);
+      await api.post('/admin/videos/bulk-clear-descriptions', { videoIds });
+      await fetchVideos(true, currentPage);
+      setMessage(`Cleared descriptions for ${count} video(s).`);
+      setMessageType('success');
+      setSelectedIds(new Set());
+    } catch (error) {
+      setMessage(error.response?.data?.error || 'Bulk clear failed');
+      setMessageType('error');
+    } finally {
+      setBulkGenerating(false);
+    }
+  };
+
+  const runExport = async (videoIds = null) => {
+    try {
+      const res = await api.post('/admin/videos/export-descriptions',
+        videoIds ? { videoIds } : {},
+        { responseType: 'blob' }
+      );
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `descriptions-${Date.now()}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      setMessage(`Exported ${videoIds ? videoIds.length + ' selected' : 'all filtered'} video descriptions.`);
+      setMessageType('success');
+    } catch (error) {
+      setMessage(error.response?.data?.error || 'Export failed');
+      setMessageType('error');
+    }
+  };
+
   const handleToggleSelect = (id) => {
-    const video = videos.find((v) => v.id === id);
-    if (!video || !isBulkEligible(video)) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -280,13 +327,12 @@ function VideoDescriptions() {
   };
 
   const handleSelectAll = () => {
-    const eligibleIds = bulkEligibleVideos.map((v) => v.id);
-    const allSelected =
-      eligibleIds.length > 0 && eligibleIds.every((id) => selectedIds.has(id));
+    const allIds = videos.map((v) => v.id);
+    const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
     if (allSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(eligibleIds));
+      setSelectedIds(new Set(allIds));
     }
   };
 
@@ -359,8 +405,8 @@ function VideoDescriptions() {
           <h1>Video descriptions</h1>
           <p>
             AI writes short, natural descriptions from each video&apos;s subtitle transcript
-            (project, lesson, or story). Powered by Gemini or OpenAI — regenerate anytime; manual
-            edits aren&apos;t supported here.
+            (project, lesson, or story). Powered by Gemini or OpenAI — regenerate or edit
+            descriptions anytime.
           </p>
         </div>
         <div className={`vd-live-pulse${isLive ? ' is-active' : ''}`} aria-live="polite">
@@ -495,15 +541,33 @@ function VideoDescriptions() {
                 Deselect all
               </button>
             </div>
-            <button
-              type="button"
-              className="vd-btn vd-btn-primary vd-btn-sm"
-              onClick={() => runBulkGenerate({ videoIds: Array.from(selectedIds), missingOnly: true })}
-              disabled={bulkGenerating}
-            >
-              {bulkGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              Generate selected
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="vd-btn vd-btn-primary vd-btn-sm"
+                onClick={() => runBulkGenerate({ videoIds: Array.from(selectedIds), missingOnly: true })}
+                disabled={bulkGenerating}
+              >
+                {bulkGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                Generate selected
+              </button>
+              <button
+                type="button"
+                className="vd-btn vd-btn-secondary vd-btn-sm"
+                onClick={() => runBulkClear(Array.from(selectedIds))}
+                disabled={bulkGenerating}
+              >
+                <Trash2 size={14} /> Clear selected
+              </button>
+              <button
+                type="button"
+                className="vd-btn vd-btn-secondary vd-btn-sm"
+                onClick={() => runExport(Array.from(selectedIds))}
+                disabled={bulkGenerating}
+              >
+                <Download size={14} /> Export selected
+              </button>
+            </div>
           </div>
         )}
 
@@ -513,6 +577,14 @@ function VideoDescriptions() {
               <strong>{missingDescCount}</strong> on this page ready for AI description
             </span>
           )}
+          <button
+            type="button"
+            className="vd-btn vd-btn-secondary"
+            onClick={() => runExport()}
+            disabled={bulkGenerating}
+          >
+            <Download size={14} /> Export all
+          </button>
           <button
             type="button"
             className="vd-btn vd-btn-primary"
@@ -536,13 +608,10 @@ function VideoDescriptions() {
                     <input
                       type="checkbox"
                       className="vd-checkbox"
-                      checked={
-                        bulkEligibleVideos.length > 0
-                        && bulkEligibleVideos.every((v) => selectedIds.has(v.id))
-                      }
+                      checked={videos.length > 0 && videos.every((v) => selectedIds.has(v.id))}
                       onChange={handleSelectAll}
-                      disabled={bulkGenerating || bulkEligibleVideos.length === 0}
-                      aria-label="Select all videos missing AI descriptions on this page"
+                      disabled={bulkGenerating || videos.length === 0}
+                      aria-label="Select all videos on this page"
                     />
                   </th>
                   <th>Video</th>
@@ -589,6 +658,16 @@ function VideoDescriptions() {
                       <Fragment key={video.id}>
                         <tr
                           className={`data-row${selectedIds.has(video.id) ? ' is-selected' : ''}`}
+                          onClick={(e) => {
+                            // Don't open modal if clicking checkbox, buttons, or transcript toggle
+                            if (
+                              e.target.closest('button') ||
+                              e.target.closest('input[type="checkbox"]')
+                            ) return;
+                            setEditModalVideo(video);
+                          }}
+                          style={{ cursor: 'pointer' }}
+                          title="Click to edit description"
                         >
                           <td className="col-checkbox">
                             <input
@@ -596,12 +675,8 @@ function VideoDescriptions() {
                               className="vd-checkbox"
                               checked={selectedIds.has(video.id)}
                               onChange={() => handleToggleSelect(video.id)}
-                              disabled={bulkGenerating || !isBulkEligible(video)}
-                              aria-label={
-                                isBulkEligible(video)
-                                  ? `Select ${video.title} for bulk generate`
-                                  : `Already has AI description — ${video.title}`
-                              }
+                              disabled={bulkGenerating}
+                              aria-label={`Select ${video.title}`}
                             />
                           </td>
                           <td className="vd-cell-video-id">
@@ -646,19 +721,12 @@ function VideoDescriptions() {
                           <td className="desc-cell">
                             {isGenerating ? (
                               <div className="vd-generating-lines" aria-busy="true">
-                                <span />
-                                <span />
-                                <span />
+                                <span /><span /><span />
                               </div>
                             ) : aiDescription ? (
                               <>
                                 <div className="vd-desc-text">{aiDescription}</div>
-                                {video.description_source && (
-                                  <span className="vd-desc-source" data-provider={video.description_source}>
-                                    <span className="provider-dot" aria-hidden="true" />
-                                    {video.description_source}
-                                  </span>
-                                )}
+                                <SourceBadge source={video.description_source} />
                               </>
                             ) : (
                               <span className="vd-desc-empty">Empty — generate from transcript</span>
@@ -666,6 +734,18 @@ function VideoDescriptions() {
                           </td>
                           <td className="col-actions">
                             <div className="vd-row-actions">
+                              {/* Edit button — always visible */}
+                              <button
+                                type="button"
+                                className="vd-btn vd-btn-secondary vd-btn-sm"
+                                onClick={() => setEditModalVideo(video)}
+                                disabled={isBusy}
+                                title="Edit description"
+                              >
+                                <Pencil size={14} />
+                                Edit
+                              </button>
+                              {/* Generate — only when no AI description yet */}
                               {!video.has_ai_description && (
                                 <button
                                   type="button"
@@ -682,12 +762,14 @@ function VideoDescriptions() {
                                   {isGenerating ? 'Generating…' : 'Generate'}
                                 </button>
                               )}
+                              {/* Clear — only when AI description exists */}
                               {video.has_ai_description && (
                                 <button
                                   type="button"
                                   className="vd-btn vd-btn-danger-ghost vd-btn-sm"
                                   onClick={() => clearDesc(video.id)}
                                   disabled={bulkGenerating}
+                                  title="Clear AI description"
                                 >
                                   <Trash2 size={14} />
                                   Clear
@@ -766,6 +848,35 @@ function VideoDescriptions() {
           </div>
         </section>
       </main>
+
+      {/* ── Edit Description Modal ── */}
+      {editModalVideo && (
+        <EditDescriptionModal
+          videoRow={editModalVideo}
+          onClose={() => setEditModalVideo(null)}
+          onSaved={({ regenerated, error, keepOpen } = {}) => {
+            if (error) {
+              setMessage(error);
+              setMessageType('error');
+              return; // keep modal open on error
+            }
+            if (!keepOpen) setEditModalVideo(null);
+            fetchVideos(true, currentPage);
+            setMessage(
+              regenerated
+                ? 'AI description regenerated successfully.'
+                : 'Description saved successfully.'
+            );
+            setMessageType('success');
+          }}
+          onCleared={(id) => {
+            setEditModalVideo(null);
+            fetchVideos(true, currentPage);
+            setMessage(`Cleared AI description for video #${id}`);
+            setMessageType('success');
+          }}
+        />
+      )}
 
       {message && (
         <div className="vd-toast-region" aria-live="polite">

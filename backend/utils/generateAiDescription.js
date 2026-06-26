@@ -18,32 +18,34 @@ import { isVttValid } from './vttLifecycle.js';
 import { extractCaptionLines } from './generateDescriptionFromVtt.js';
 import { setAiStatus } from './aiStatus.js';
 
-const LIBRARY_DESCRIPTION_PROMPT = `Write a video library description from the subtitle transcript below.
+const LIBRARY_DESCRIPTION_PROMPT = `You are an expert technical writer and professional video describer. Transform the transcript below into a highly professional, academic, and executive-level summary.
 
-STEP 1 — Pick the content type (from transcript only; do not label it in output):
-• Project — science, electronics, coding, robotics, engineering, or hands-on build
-• Lesson — concept, skill, emotion, or educational topic
-• Story — story, fairy tale, or fictional narrative
+Structural constraints:
+- Exactly one continuous paragraph — no bullet points, no numbered lists, no line breaks.
+- Extremely concise — 3 to 4 lines of text maximum.
+- NEVER start any sentence with the word "This" — not "This video", "This project", "This program", "This lesson", "This analysis", "This exploration", "This work", or any variation.
+- Tone: academic, corporate, technically rigorous. No informal language, no storytelling, no metaphors, no marketing words.
 
-STEP 2 — Write 80–150 words in a natural human voice, like someone explaining after watching.
+Content requirements:
+- Focus strictly on the methodology, concepts, findings, and outcomes.
+- Use industry-standard technical vocabulary.
+- Ensure logical flow: topic/context → methodology/approach → insights/findings → outcome/application.
+- Do NOT mention the transcript.
 
-How to write:
-• Simple, casual, easy to read — mix short and medium sentences
-• Rewrite in your own words; never copy transcript sentences
-• Use only facts from the transcript; title is for context only
-• Do not invent parts, characters, or ideas not in the transcript
-• Short paragraphs are fine
-• Output the description only — no headings or type labels
+Bad opening examples (never do these):
+"This video explains..." / "This project covers..." / "This analysis demonstrates..." / "This program shows..."
 
-Banned phrases (and similar AI/formal wording):
-Discover how, Learn how, Explore, Dive into, This exciting project, In this project we will,
-This content focuses on, The video explores, This segment discusses, The video begins,
-It then explains, In conclusion.
+Good opening examples (start with the subject matter directly):
+"Urban traffic congestion is systematically addressed through..."
+"A K-Means clustering methodology segments the road network..."
+"Interactive decision-making logic in software applications is developed through..."
+"Ancient China's four foundational inventions — paper, compass, gunpowder, and printing —..."
 
-VIDEO TITLE:
-{{VIDEO_TITLE}}
+Output only the final paragraph.
 
-SUBTITLE TRANSCRIPT:
+TITLE: {{VIDEO_TITLE}}
+
+TRANSCRIPT:
 {{TRANSCRIPT}}`;
 
 function buildPrompt(transcript, videoTitle = '') {
@@ -56,8 +58,17 @@ async function generateWithOpenAI(transcript, videoTitle) {
   const openai = getOpenAIClient();
   const completion = await openai.chat.completions.create({
     model: config.openai.model,
-    messages: [{ role: 'user', content: buildPrompt(transcript, videoTitle) }],
-    temperature: 0.5
+    messages: [
+      {
+        role: 'system',
+        content: 'You are an expert technical writer producing academic, executive-level video descriptions. Write in a single concise paragraph using precise technical vocabulary. No informal language, no bullet points, never start a sentence with "This".'
+      },
+      {
+        role: 'user',
+        content: buildPrompt(transcript, videoTitle)
+      }
+    ],
+    temperature: 0.8
   });
   const description = completion.choices[0]?.message?.content?.trim();
   if (!description) throw new Error('OpenAI returned an empty description');
@@ -135,8 +146,8 @@ export async function generateAiDescriptionForVideo(video) {
     throw new Error('Subtitle transcript is too short to generate a description');
   }
 
-  const provider = getAiDescriptionProvider();
   await setAiStatus(video.id, 'processing');
+  console.log(`[generateAiDescription] 🚀 Using prompt v2 for #${video.id} ${video.video_id} (transcript: ${transcript.length} chars)`);
 
   try {
     const { description, provider: usedProvider } = await generateLibraryDescription(
