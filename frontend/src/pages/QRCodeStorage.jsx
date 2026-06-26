@@ -8,7 +8,7 @@ import QRCodeViewer from '../components/QRCodeViewer';
 // Safe QR Code component wrapper
 function SafeQRCode({ value, size = 160 }) {
   const [hasError, setHasError] = useState(false);
-  
+
   if (hasError || !value) {
     return (
       <div className="w-40 h-40 flex items-center justify-center text-red-500 text-xs text-center p-4">
@@ -19,7 +19,7 @@ function SafeQRCode({ value, size = 160 }) {
       </div>
     );
   }
-  
+
   try {
     return (
       <QRCodeSVG
@@ -51,7 +51,7 @@ function QRCodeStorage() {
   const [copiedId, setCopiedId] = useState(null);
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [showDiagnostic, setShowDiagnostic] = useState(false);
-  
+
   // Filter options (Subject, Grade, Unit, Lesson, Module, Version)
   const [filterOptions, setFilterOptions] = useState({
     subjects: [],
@@ -69,7 +69,7 @@ function QRCodeStorage() {
     module: 'all',
     version: 'all'
   });
-  
+
   // Selection for bulk download
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [downloadingIds, setDownloadingIds] = useState(new Set());
@@ -94,28 +94,28 @@ function QRCodeStorage() {
       setLoading(true);
       setError(null);
       const response = await api.get('/videos/qr-codes');
-      
+
       // Validate response data
       if (!response.data || !Array.isArray(response.data)) {
         throw new Error('Invalid response format from server');
       }
-      
+
       // Validate each QR code has required fields
       const validQRCodes = response.data.filter(item => {
         return item && item.videoId && item.shortUrl;
       });
-      
+
       if (validQRCodes.length < response.data.length) {
         console.warn(`Filtered out ${response.data.length - validQRCodes.length} invalid QR codes`);
       }
-      
+
       setQrCodes(validQRCodes);
       setFilteredQrCodes(validQRCodes);
     } catch (err) {
       console.error('Failed to load QR codes:', err);
       const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to load QR codes';
       setError(errorMessage);
-      
+
       // Provide helpful error messages
       if (err.response?.status === 401) {
         setError('Authentication required. Please log in again.');
@@ -244,7 +244,7 @@ function QRCodeStorage() {
         setTimeout(() => setCopiedId(null), 2000);
         return;
       }
-      
+
       await navigator.clipboard.writeText(url);
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
@@ -257,50 +257,55 @@ function QRCodeStorage() {
   const handleDownloadQR = async (videoId, videoData) => {
     try {
       console.log('Downloading QR code for video:', videoId);
-      
+
       if (!videoId) {
         throw new Error('Video ID is required');
       }
-      
+
       setDownloadingIds(prev => new Set(prev).add(videoId));
-      
+
       // Find the SVG element in the displayed QR code
       // The QRCodeViewer component renders an SVG with QRCodeSVG
       const cardElement = document.querySelector(`[data-video-id="${videoId}"]`);
       if (!cardElement) {
         throw new Error('QR code element not found on page');
       }
-      
+
       // Find the SVG element inside the card
       const svgElement = cardElement.querySelector('svg');
       if (!svgElement) {
         throw new Error('SVG QR code not found');
       }
-      
+
       // Clone the SVG to avoid modifying the original
       const clonedSvg = svgElement.cloneNode(true);
-      
+
       // Get the SVG as a string
       const svgString = new XMLSerializer().serializeToString(clonedSvg);
-      
-      // Generate filename from Grade + Unit + Lesson + Module + Version in format G1_U1_L1_M1_V1.1.svg
-      // Order: Grade, Unit, Lesson, Module, Version (G_U_L_M_V)
-      // Version is critical to differentiate between videos with same metadata but different versions
+
+      // Generate filename using Video Title as primary identifier
+      // Format: Video_Title_G1_U1_L1_M1_V1.svg
+      const safeTitle = (videoData?.title || '')
+        .trim()
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .replace(/\s+/g, '_');
+
       const parts = [];
+      if (safeTitle) parts.push(safeTitle);
       if (videoData?.grade) parts.push(`G${videoData.grade}`);
-      if (videoData?.unit) parts.push(`U${videoData.unit}`); // Use unit field for U prefix
+      if (videoData?.unit) parts.push(`U${videoData.unit}`);
       if (videoData?.lesson) parts.push(`L${videoData.lesson}`);
       if (videoData?.module) parts.push(`M${videoData.module}`);
-      if (videoData?.version) parts.push(`V${videoData.version}`); // Add version to differentiate
-      
-      const filename = parts.length > 0 
+      if (videoData?.version) parts.push(`V${videoData.version}`);
+
+      const filename = parts.length > 0
         ? parts.join('_') + '.svg'
         : `${videoId}_qr_code.svg`;
-      
+
       // Create blob with SVG content
       const blob = new Blob([svgString], { type: 'image/svg+xml' });
       const url = window.URL.createObjectURL(blob);
-      
+
       // Create download link
       const link = document.createElement('a');
       link.href = url;
@@ -309,12 +314,12 @@ function QRCodeStorage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
       console.log('QR code downloaded successfully as:', filename);
     } catch (err) {
       console.error('Failed to download QR code:', err);
       let errorMessage = 'Unknown error';
-      
+
       if (err.message) {
         errorMessage = err.message;
       } else if (err.response?.data?.message) {
@@ -322,7 +327,7 @@ function QRCodeStorage() {
       } else if (err.response?.data?.error) {
         errorMessage = err.response.data.error;
       }
-      
+
       alert(`Failed to download QR code: ${errorMessage}`);
     } finally {
       setDownloadingIds(prev => {
@@ -362,42 +367,47 @@ function QRCodeStorage() {
       if (!cardElement) {
         throw new Error('QR code element not found on page');
       }
-      
+
       // Find the SVG element inside the card
       const svgElement = cardElement.querySelector('svg');
       if (!svgElement) {
         throw new Error('SVG QR code not found');
       }
-      
+
       // Clone the SVG to avoid modifying the original
       const clonedSvg = svgElement.cloneNode(true);
-      
+
       // Get the SVG as a string
       const svgString = new XMLSerializer().serializeToString(clonedSvg);
-      
-      // Generate filename from Grade + Unit + Lesson + Module + Version in format G1_U1_L1_M1_V1.1.svg
-      // Order: Grade, Unit, Lesson, Module, Version (G_U_L_M_V)
-      // Version is critical to differentiate between videos with same metadata but different versions
+
+      // Generate filename using Video Title as primary identifier
+      // Format: Video_Title_G1_U1_L1_M1_V1.svg
+      const safeTitle = (videoData?.title || '')
+        .trim()
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .replace(/\s+/g, '_');
+
       const parts = [];
+      if (safeTitle) parts.push(safeTitle);
       if (videoData?.grade) parts.push(`G${videoData.grade}`);
-      if (videoData?.unit) parts.push(`U${videoData.unit}`); // Use unit field for U prefix
+      if (videoData?.unit) parts.push(`U${videoData.unit}`);
       if (videoData?.lesson) parts.push(`L${videoData.lesson}`);
       if (videoData?.module) parts.push(`M${videoData.module}`);
-      if (videoData?.version) parts.push(`V${videoData.version}`); // Add version to differentiate
-      
-      const filename = parts.length > 0 
+      if (videoData?.version) parts.push(`V${videoData.version}`);
+
+      const filename = parts.length > 0
         ? parts.join('_') + '.svg'
         : `${videoId}_qr_code.svg`;
-      
+
       // Create blob with SVG content
       const blob = new Blob([svgString], { type: 'image/svg+xml' });
-      
+
       // Create file in the selected folder
       const file = await fileHandle.getFileHandle(filename, { create: true });
       const writable = await file.createWritable();
       await writable.write(blob);
       await writable.close();
-      
+
       return filename;
     } catch (err) {
       console.error(`Failed to download QR code for ${videoId}:`, err);
@@ -409,7 +419,7 @@ function QRCodeStorage() {
   const handleSmartBulkDownload = async () => {
     let itemsToDownload = [];
     let downloadType = '';
-    
+
     // Determine what to download based on selection and filters
     if (selectedIds.size > 0) {
       // If items are selected, download only selected
@@ -417,14 +427,14 @@ function QRCodeStorage() {
       downloadType = 'selected';
     } else {
       // Check if filters are applied
-      const hasFilters = selectedFilters.subject !== 'all' || 
-                        selectedFilters.grade !== 'all' || 
-                        selectedFilters.unit !== 'all' ||
-                        selectedFilters.lesson !== 'all' ||
-                        selectedFilters.module !== 'all' ||
-                        selectedFilters.version !== 'all' ||
-                        searchTerm.trim() !== '';
-      
+      const hasFilters = selectedFilters.subject !== 'all' ||
+        selectedFilters.grade !== 'all' ||
+        selectedFilters.unit !== 'all' ||
+        selectedFilters.lesson !== 'all' ||
+        selectedFilters.module !== 'all' ||
+        selectedFilters.version !== 'all' ||
+        searchTerm.trim() !== '';
+
       if (hasFilters) {
         // If filters are applied, download filtered items
         itemsToDownload = filteredQrCodes;
@@ -448,7 +458,7 @@ function QRCodeStorage() {
       if (!window.confirm(confirmMessage)) {
         return;
       }
-      
+
       setIsBulkDownloading(true);
       try {
         for (let i = 0; i < itemsToDownload.length; i++) {
@@ -484,7 +494,7 @@ function QRCodeStorage() {
       const directoryHandle = await window.showDirectoryPicker({
         mode: 'readwrite'
       });
-      
+
       const confirmMessage = `Download ${itemsToDownload.length} QR code${itemsToDownload.length > 1 ? 's' : ''} to the selected folder?`;
       if (!window.confirm(confirmMessage)) {
         return;
@@ -512,7 +522,7 @@ function QRCodeStorage() {
             return next;
           });
         }
-        
+
         // Small delay between downloads
         if (i < itemsToDownload.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 300));
@@ -520,13 +530,13 @@ function QRCodeStorage() {
       }
 
       setIsBulkDownloading(false);
-      
+
       if (successCount > 0) {
         alert(`Successfully downloaded ${successCount} QR code${successCount > 1 ? 's' : ''} to the selected folder${failCount > 0 ? ` (${failCount} failed)` : ''}`);
       } else {
         alert(`Failed to download QR codes. Please try again.`);
       }
-      
+
       // Clear selection after bulk download
       if (downloadType === 'selected') {
         setSelectedIds(new Set());
@@ -548,23 +558,23 @@ function QRCodeStorage() {
     if (isBulkDownloading) {
       return 'Downloading...';
     }
-    
+
     if (selectedIds.size > 0) {
       return `Download Selected (${selectedIds.size})`;
     }
-    
-    const hasFilters = selectedFilters.subject !== 'all' || 
-                      selectedFilters.grade !== 'all' || 
-                      selectedFilters.unit !== 'all' ||
-                      selectedFilters.lesson !== 'all' ||
-                      selectedFilters.module !== 'all' ||
-                      selectedFilters.version !== 'all' ||
-                      searchTerm.trim() !== '';
-    
+
+    const hasFilters = selectedFilters.subject !== 'all' ||
+      selectedFilters.grade !== 'all' ||
+      selectedFilters.unit !== 'all' ||
+      selectedFilters.lesson !== 'all' ||
+      selectedFilters.module !== 'all' ||
+      selectedFilters.version !== 'all' ||
+      searchTerm.trim() !== '';
+
     if (hasFilters) {
       return `Download Filtered (${filteredQrCodes.length})`;
     }
-    
+
     return `Download All (${qrCodes.length})`;
   };
 
@@ -894,123 +904,123 @@ function QRCodeStorage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8">
-            {filteredQrCodes.map((item) => (
-              <div
-                key={`${item.videoId}_${item.version || 'no-version'}_${item.shortSlug || ''}`}
-                data-video-id={item.videoId}
-                className="bg-white rounded-2xl shadow-lg border-2 border-slate-200 p-5 sm:p-6 hover:shadow-2xl transition-all duration-300 hover:border-blue-400 transform hover:-translate-y-1 group"
-              >
-                {/* Selection Checkbox */}
-                <div className="flex items-center justify-between mb-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(item.videoId)}
-                      onChange={() => handleSelectItem(item.videoId)}
-                      className="w-5 h-5 text-blue-600 border-2 border-slate-300 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                    />
-                    <span className="text-xs font-semibold text-slate-600">Select</span>
-                  </label>
-                  {downloadingIds.has(item.videoId) && (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                  )}
-                </div>
-
-                {/* QR Code */}
-                <div className="mb-4">
-                  <QRCodeViewer url={item.shortUrl} videoId={item.videoId} />
-                </div>
-
-                {/* Video Info */}
-                <div className="mb-5">
-                  <h3 className="font-bold text-lg sm:text-xl text-slate-900 mb-3 line-clamp-2 min-h-[3rem] group-hover:text-blue-600 transition-colors leading-tight">
-                    {item.title || 'Untitled Video'}
-                  </h3>
-                  
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {item.course && (
-                      <span className="px-3 py-1.5 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 rounded-lg text-xs font-bold border border-blue-300 shadow-sm">
-                        {item.course}
-                      </span>
-                    )}
-                    {item.grade && (
-                      <span className="px-3 py-1.5 bg-gradient-to-r from-green-50 to-green-100 text-green-700 rounded-lg text-xs font-bold border border-green-300 shadow-sm">
-                        Grade {item.grade}
-                      </span>
-                    )}
-                    {item.lesson && (
-                      <span className="px-3 py-1.5 bg-gradient-to-r from-purple-50 to-purple-100 text-purple-700 rounded-lg text-xs font-bold border border-purple-300 shadow-sm">
-                        {item.lesson}
-                      </span>
-                    )}
-                    {item.version && (
-                      <span className="px-3 py-1.5 bg-gradient-to-r from-orange-50 to-orange-100 text-orange-700 rounded-lg text-xs font-bold border border-orange-300 shadow-sm">
-                        V{item.version}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Short URL */}
-                  <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 border-2 border-slate-200 mb-4">
-                    <p className="text-xs text-slate-600 mb-2 font-bold uppercase tracking-wide">
-                      Short Link
-                    </p>
-                    <div className="flex items-center gap-2 bg-white rounded-lg p-2 border border-slate-200">
+              {filteredQrCodes.map((item) => (
+                <div
+                  key={`${item.videoId}_${item.version || 'no-version'}_${item.shortSlug || ''}`}
+                  data-video-id={item.videoId}
+                  className="bg-white rounded-2xl shadow-lg border-2 border-slate-200 p-5 sm:p-6 hover:shadow-2xl transition-all duration-300 hover:border-blue-400 transform hover:-translate-y-1 group"
+                >
+                  {/* Selection Checkbox */}
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
                       <input
-                        type="text"
-                        value={item.shortUrl}
-                        readOnly
-                        className="flex-1 text-xs sm:text-sm font-mono text-slate-700 bg-transparent border-none focus:outline-none truncate"
+                        type="checkbox"
+                        checked={selectedIds.has(item.videoId)}
+                        onChange={() => handleSelectItem(item.videoId)}
+                        className="w-5 h-5 text-blue-600 border-2 border-slate-300 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
                       />
-                      <button
-                        onClick={() => handleCopy(item.shortUrl, item.videoId)}
-                        className="p-2 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
-                        title="Copy URL"
-                      >
-                        {copiedId === item.videoId ? (
-                          <Check className="w-4 h-4 text-green-600" />
-                        ) : (
-                          <Copy className="w-4 h-4 text-slate-600 hover:text-blue-600" />
-                        )}
-                      </button>
+                      <span className="text-xs font-semibold text-slate-600">Select</span>
+                    </label>
+                    {downloadingIds.has(item.videoId) && (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    )}
+                  </div>
+
+                  {/* QR Code */}
+                  <div className="mb-4">
+                    <QRCodeViewer url={item.shortUrl} videoId={item.videoId} />
+                  </div>
+
+                  {/* Video Info */}
+                  <div className="mb-5">
+                    <h3 className="font-bold text-lg sm:text-xl text-slate-900 mb-3 line-clamp-2 min-h-[3rem] group-hover:text-blue-600 transition-colors leading-tight">
+                      {item.title || 'Untitled Video'}
+                    </h3>
+
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {item.course && (
+                        <span className="px-3 py-1.5 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 rounded-lg text-xs font-bold border border-blue-300 shadow-sm">
+                          {item.course}
+                        </span>
+                      )}
+                      {item.grade && (
+                        <span className="px-3 py-1.5 bg-gradient-to-r from-green-50 to-green-100 text-green-700 rounded-lg text-xs font-bold border border-green-300 shadow-sm">
+                          Grade {item.grade}
+                        </span>
+                      )}
+                      {item.lesson && (
+                        <span className="px-3 py-1.5 bg-gradient-to-r from-purple-50 to-purple-100 text-purple-700 rounded-lg text-xs font-bold border border-purple-300 shadow-sm">
+                          {item.lesson}
+                        </span>
+                      )}
+                      {item.version && (
+                        <span className="px-3 py-1.5 bg-gradient-to-r from-orange-50 to-orange-100 text-orange-700 rounded-lg text-xs font-bold border border-orange-300 shadow-sm">
+                          V{item.version}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs text-slate-500 mt-2 font-medium">
-                      Video ID: <span className="font-mono">{item.videoId}</span>
-                    </p>
+
+                    {/* Short URL */}
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 border-2 border-slate-200 mb-4">
+                      <p className="text-xs text-slate-600 mb-2 font-bold uppercase tracking-wide">
+                        Short Link
+                      </p>
+                      <div className="flex items-center gap-2 bg-white rounded-lg p-2 border border-slate-200">
+                        <input
+                          type="text"
+                          value={item.shortUrl}
+                          readOnly
+                          className="flex-1 text-xs sm:text-sm font-mono text-slate-700 bg-transparent border-none focus:outline-none truncate"
+                        />
+                        <button
+                          onClick={() => handleCopy(item.shortUrl, item.videoId)}
+                          className="p-2 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
+                          title="Copy URL"
+                        >
+                          {copiedId === item.videoId ? (
+                            <Check className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <Copy className="w-4 h-4 text-slate-600 hover:text-blue-600" />
+                          )}
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2 font-medium">
+                        Video ID: <span className="font-mono">{item.videoId}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2.5 pt-4 border-t-2 border-slate-200">
+                    <button
+                      onClick={() => handleDownloadQR(item.videoId, item)}
+                      disabled={downloadingIds.has(item.videoId)}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all font-bold text-sm shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                      {downloadingIds.has(item.videoId) ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <span className="hidden sm:inline">Downloading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          <span className="hidden sm:inline">Download</span>
+                        </>
+                      )}
+                    </button>
+                    <a
+                      href={item.shortUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-3 bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 rounded-xl hover:from-slate-200 hover:to-slate-300 transition-all font-bold text-sm border-2 border-slate-300 shadow-sm hover:shadow-md transform hover:scale-105 flex items-center justify-center"
+                    >
+                      <span className="hidden sm:inline">View</span>
+                      <span className="sm:hidden">→</span>
+                    </a>
                   </div>
                 </div>
-
-                {/* Actions */}
-                <div className="flex gap-2.5 pt-4 border-t-2 border-slate-200">
-                  <button
-                    onClick={() => handleDownloadQR(item.videoId, item)}
-                    disabled={downloadingIds.has(item.videoId)}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all font-bold text-sm shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                  >
-                    {downloadingIds.has(item.videoId) ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        <span className="hidden sm:inline">Downloading...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4" />
-                        <span className="hidden sm:inline">Download</span>
-                      </>
-                    )}
-                  </button>
-                  <a
-                    href={item.shortUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-3 bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 rounded-xl hover:from-slate-200 hover:to-slate-300 transition-all font-bold text-sm border-2 border-slate-300 shadow-sm hover:shadow-md transform hover:scale-105 flex items-center justify-center"
-                  >
-                    <span className="hidden sm:inline">View</span>
-                    <span className="sm:hidden">→</span>
-                  </a>
-                </div>
-              </div>
-            ))}
+              ))}
             </div>
           )}
         </div>

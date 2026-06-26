@@ -6,7 +6,7 @@ import { getBackendBaseUrl } from '../utils/apiConfig';
 
 function MyStorageManager() {
   const navigate = useNavigate();
-  
+
   // State
   const [videos, setVideos] = useState([]);
   const [filteredVideos, setFilteredVideos] = useState([]);
@@ -75,7 +75,7 @@ function MyStorageManager() {
       const saved = localStorage.getItem('cloudflare_staged_files');
       const savedProgress = localStorage.getItem('cloudflare_upload_progress');
       const savedUploading = localStorage.getItem('cloudflare_uploading');
-      
+
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -85,7 +85,7 @@ function MyStorageManager() {
             file: null, // File object cannot be restored, will be null
             hasFile: false // Flag to indicate file needs to be re-selected
           })));
-          
+
           if (savedProgress) {
             setUploadProgress(parseFloat(savedProgress));
           }
@@ -105,7 +105,7 @@ function MyStorageManager() {
     setErrorDetails(null);
     try {
       const response = await api.get('/videos?status=active&limit=10000'); // High limit to get all videos
-      
+
       // Handle both old format (array) and new format (object with videos and pagination)
       let videosData = [];
       if (Array.isArray(response.data)) {
@@ -114,29 +114,29 @@ function MyStorageManager() {
       } else if (response.data && response.data.videos) {
         // New format - object with videos and pagination
         videosData = response.data.videos || [];
-        
+
         // If pagination exists and there are more pages, fetch all pages
         const pagination = response.data.pagination;
         if (pagination && pagination.totalPages > 1) {
           const allVideos = [...videosData];
-          
+
           // Fetch remaining pages
           for (let page = 2; page <= pagination.totalPages; page++) {
             const pageResponse = await api.get(`/videos?status=active&limit=10000&page=${page}`);
-            
+
             if (pageResponse.data && pageResponse.data.videos) {
               allVideos.push(...pageResponse.data.videos);
             } else if (Array.isArray(pageResponse.data)) {
               allVideos.push(...pageResponse.data);
             }
           }
-          
+
           videosData = allVideos;
         }
       } else {
         videosData = [];
       }
-      
+
       // Filter out old videos with empty course, unit, and module (old structure)
       videosData = videosData.filter(video => {
         // Keep videos that have at least course, unit, or module, OR have a strong ID format
@@ -144,7 +144,7 @@ function MyStorageManager() {
         const hasMetadata = video.course || video.unit || video.module || video.grade || video.lesson;
         return hasStrongId || hasMetadata;
       });
-      
+
       // Detect duplicate titles
       const titleCounts = {};
       videosData.forEach(video => {
@@ -153,7 +153,7 @@ function MyStorageManager() {
           titleCounts[title] = (titleCounts[title] || 0) + 1;
         }
       });
-      
+
       // Add duplicate status to videos
       videosData = videosData.map(video => {
         const title = (video.title || '').trim();
@@ -164,7 +164,7 @@ function MyStorageManager() {
           duplicateCount: title ? titleCounts[title] : 0
         };
       });
-      
+
       setVideos(videosData);
       setFilteredVideos(videosData);
       if (videosData.length === 0) {
@@ -198,19 +198,19 @@ function MyStorageManager() {
 
       // Check if query matches any field
       return course.includes(query) ||
-             grade.includes(query) ||
-             unit.includes(query) ||
-             lesson.includes(query) ||
-             module.includes(query) ||
-             status.includes(query) ||
-             title.includes(query) ||
-             videoId.includes(query) ||
-             // Support multi-word queries like "course faith"
-             (query.includes('course') && course.includes(query.replace('course', '').trim())) ||
-             (query.includes('grade') && grade.includes(query.replace('grade', '').trim())) ||
-             (query.includes('unit') && unit.includes(query.replace('unit', '').trim())) ||
-             (query.includes('lesson') && lesson.includes(query.replace('lesson', '').trim())) ||
-             (query.includes('module') && module.includes(query.replace('module', '').trim()));
+        grade.includes(query) ||
+        unit.includes(query) ||
+        lesson.includes(query) ||
+        module.includes(query) ||
+        status.includes(query) ||
+        title.includes(query) ||
+        videoId.includes(query) ||
+        // Support multi-word queries like "course faith"
+        (query.includes('course') && course.includes(query.replace('course', '').trim())) ||
+        (query.includes('grade') && grade.includes(query.replace('grade', '').trim())) ||
+        (query.includes('unit') && unit.includes(query.replace('unit', '').trim())) ||
+        (query.includes('lesson') && lesson.includes(query.replace('lesson', '').trim())) ||
+        (query.includes('module') && module.includes(query.replace('module', '').trim()));
     });
 
     setFilteredVideos(filtered);
@@ -335,20 +335,20 @@ function MyStorageManager() {
     try {
       for (let i = 0; i < stagedFiles.length; i++) {
         const item = stagedFiles[i];
-        
+
         const formData = new FormData();
         formData.append('video', item.file);
         formData.append('title', item.title || item.file.name);
         formData.append('videoId', item.videoId || '');
         formData.append('plannedPath', item.plannedPath || '');
-        
+
         // CRITICAL: Ensure all fields are sent with actual values
         // Convert empty strings to null for database consistency, but preserve actual values
         const normalizeValue = (val) => {
           if (!val || (typeof val === 'string' && val.trim() === '')) return null;
           return String(val).trim();
         };
-        
+
         // Get subject value - prefer subject over course
         const subjectValue = normalizeValue(item.subject || item.course);
         const gradeValue = normalizeValue(item.grade);
@@ -358,7 +358,7 @@ function MyStorageManager() {
         const versionValue = normalizeValue(item.version);
         const descriptionValue = normalizeValue(item.description);
         const statusValue = item.status && item.status.trim() !== '' ? item.status.trim() : 'active';
-        
+
         // CRITICAL: Always send these fields, even if null (so backend knows to set them)
         // Use null instead of empty string for database consistency
         formData.append('subject', subjectValue || '');
@@ -370,7 +370,7 @@ function MyStorageManager() {
         formData.append('version', versionValue || '');
         formData.append('description', descriptionValue || '');
         formData.append('status', statusValue);
-        
+
         // Log what we're sending - show both raw and processed values
         console.log('[CloudflareResourceManager] ===== SENDING FORM DATA =====');
         console.log('[CloudflareResourceManager] Raw item values:', {
@@ -498,16 +498,16 @@ function MyStorageManager() {
           console.error('==============================');
 
           setErrorDetails({ ...diagnostics, expanded: false });
-          
+
           const apiMessage = uploadErr.response?.data?.message || uploadErr.response?.data?.error || uploadErr.message;
           const status = uploadErr.response?.status;
           const sqlMessage = uploadErr.response?.data?.sqlMessage;
-          
+
           let errorMsg = `Failed to upload "${item.file?.name || 'video'}"`;
           if (status) errorMsg += ` (HTTP ${status})`;
           if (apiMessage) errorMsg += `: ${apiMessage}`;
           if (sqlMessage) errorMsg += ` [SQL: ${sqlMessage}]`;
-          
+
           setError(errorMsg);
           throw uploadErr; // Re-throw to stop the loop
         }
@@ -518,12 +518,12 @@ function MyStorageManager() {
         setSuccess(`Uploaded ${successfullyUploaded.length} video(s) successfully`);
         setUploadedVideos(successfullyUploaded); // Store uploaded videos to display
         // Clear staged files and localStorage on successful upload
-    setStagedFiles([]);
-    setUploadProgress(0);
-    setIndividualProgress({});
-    localStorage.removeItem('cloudflare_staged_files');
-    localStorage.removeItem('cloudflare_upload_progress');
-    localStorage.removeItem('cloudflare_uploading');
+        setStagedFiles([]);
+        setUploadProgress(0);
+        setIndividualProgress({});
+        localStorage.removeItem('cloudflare_staged_files');
+        localStorage.removeItem('cloudflare_upload_progress');
+        localStorage.removeItem('cloudflare_uploading');
         loadVideos();
       } else {
         // If no videos were successfully uploaded, show error
@@ -552,13 +552,13 @@ function MyStorageManager() {
     }
 
     try {
-    setLoading(true);
-    setError('');
-      
+      setLoading(true);
+      setError('');
+
       const response = await api.get('/videos/export-csv', {
         responseType: 'blob'
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -567,7 +567,7 @@ function MyStorageManager() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
       setSuccess(`CSV generated successfully with ${videos.length} video(s)!`);
     } catch (err) {
       console.error('CSV generation error:', err);
@@ -698,28 +698,28 @@ function MyStorageManager() {
                 <p className="text-slate-600 text-lg">Manage your videos stored locally in backend/upload/</p>
               </div>
             </div>
-              <div className="flex gap-3 flex-wrap">
-                <label className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl hover:scale-[1.02] cursor-pointer">
-                  <Upload className="w-5 h-5" />
-                  <span>Upload from PC (multiple)</span>
-                  <input
-                    type="file"
-                    multiple
-                    accept="video/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                </label>
-            
-            <button
-                  onClick={loadVideos}
-                  disabled={loading}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg hover:shadow-xl hover:scale-[1.02] font-semibold"
-            >
-                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                  Refresh
-            </button>
-              </div>
+            <div className="flex gap-3 flex-wrap">
+              <label className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl hover:scale-[1.02] cursor-pointer">
+                <Upload className="w-5 h-5" />
+                <span>Upload from PC (multiple)</span>
+                <input
+                  type="file"
+                  multiple
+                  accept="video/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+              </label>
+
+              <button
+                onClick={loadVideos}
+                disabled={loading}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg hover:shadow-xl hover:scale-[1.02] font-semibold"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
 
@@ -727,8 +727,8 @@ function MyStorageManager() {
         {error && (
           <div className="mb-6 space-y-4">
             <div className="p-5 bg-red-50 border-l-4 border-red-500 rounded-xl text-red-700 flex items-start gap-3 shadow-sm">
-            <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
+              <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
                 <div className="font-medium mb-2">{error}</div>
                 {errorDetails && (
                   <button
@@ -740,18 +740,18 @@ function MyStorageManager() {
                 )}
               </div>
               <button onClick={() => { setError(''); setErrorDetails(null); }} className="text-red-500 hover:text-red-700 transition-colors">
-              <XCircle className="w-5 h-5" />
-            </button>
-          </div>
-            
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
             {/* Detailed Diagnostics */}
             {errorDetails && errorDetails.expanded && (
               <div className="bg-slate-900 text-slate-100 rounded-xl p-6 shadow-lg border border-slate-700 font-mono text-sm overflow-auto max-h-96">
                 <div className="mb-4 pb-3 border-b border-slate-700">
                   <h4 className="text-lg font-bold text-red-400 mb-2">🔍 Upload Diagnostics</h4>
                   <div className="text-xs text-slate-400">Timestamp: {errorDetails.timestamp}</div>
-          </div>
-                
+                </div>
+
                 <div className="space-y-4">
                   {/* File Information */}
                   <div>
@@ -760,8 +760,8 @@ function MyStorageManager() {
                       <div>Name: <span className="text-white">{errorDetails.fileName}</span></div>
                       <div>Size: <span className="text-white">{formatFileSize(errorDetails.fileSize)} ({errorDetails.fileSize} bytes)</span></div>
                       <div>Type: <span className="text-white">{errorDetails.fileType}</span></div>
-              </div>
-            </div>
+                    </div>
+                  </div>
 
                   {/* Metadata Information */}
                   <div>
@@ -820,7 +820,7 @@ function MyStorageManager() {
                 <div className="flex-1">
                   <div className="font-semibold text-yellow-800 mb-1">Files Need to be Re-selected</div>
                   <div className="text-sm text-yellow-700">
-                    Your upload progress and form data have been restored, but the video files need to be re-selected. 
+                    Your upload progress and form data have been restored, but the video files need to be re-selected.
                     Please re-select the files using the "Upload from PC" button, or clear this section to start fresh.
                   </div>
                 </div>
@@ -830,7 +830,7 @@ function MyStorageManager() {
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-3">
                 <div className="p-2 bg-emerald-100 rounded-xl">
                   <Upload className="w-5 h-5 text-emerald-600" />
-                  </div>
+                </div>
                 Staged Videos ({stagedFiles.length})
                 {uploadProgress > 0 && uploadProgress < 100 && (
                   <span className="text-sm font-normal text-slate-500">
@@ -838,8 +838,8 @@ function MyStorageManager() {
                   </span>
                 )}
               </h3>
-                <div className="flex gap-2 flex-wrap">
-                    <button
+              <div className="flex gap-2 flex-wrap">
+                <button
                   onClick={uploadStaged}
                   disabled={uploading}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all duration-200 font-semibold shadow-md hover:shadow-lg hover:scale-[1.02] disabled:bg-gray-400"
@@ -856,15 +856,15 @@ function MyStorageManager() {
                     </>
                   )}
                 </button>
-                  <button
+                <button
                   onClick={() => clearStaged()}
                   disabled={uploading}
                   className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all duration-200 font-semibold"
                 >
                   <XCircle className="w-4 h-4" />
                   Clear
-                  </button>
-                  <button
+                </button>
+                <button
                   onClick={() => {
                     // Generate CSV from staged files client-side
                     const headers = ['ID', 'Title', 'Planned Path', 'Preview URL', 'Subject', 'Grade', 'Unit', 'Lesson', 'Module', 'Version', 'Description'];
@@ -905,7 +905,7 @@ function MyStorageManager() {
                 >
                   <FileText className="w-4 h-4" />
                   CSV (staged)
-                  </button>
+                </button>
               </div>
             </div>
 
@@ -916,22 +916,22 @@ function MyStorageManager() {
                     className="bg-gradient-to-r from-emerald-500 to-green-500 h-full rounded-full transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   />
-                            </div>
+                </div>
                 <div className="text-sm text-slate-600 mt-2">Uploading... {uploadProgress}%</div>
-                              </div>
+              </div>
             )}
 
             <div className="overflow-x-auto">
               <table className="min-w-full">
                 <thead className="bg-gradient-to-r from-slate-50 to-emerald-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[480px]">Title</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Subject</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[160px]">Grade</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[180px]">Unit</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[180px]">Lesson</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Module</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Version</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[300px]">Title</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[220px]">Subject</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[90px]">Grade</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[90px]">Unit</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[90px]">Lesson</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[100px]">Module</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider min-w-[100px]">Version</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Upload Progress</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -944,7 +944,7 @@ function MyStorageManager() {
                           type="text"
                           value={item.title}
                           onChange={(e) => updateStagedField(item.id, 'title', e.target.value)}
-                          className="w-full min-w-[480px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[300px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Enter full title..."
                         />
                       </td>
@@ -956,7 +956,7 @@ function MyStorageManager() {
                             updateStagedField(item.id, 'subject', e.target.value);
                             updateStagedField(item.id, 'course', e.target.value); // Keep for backward compatibility
                           }}
-                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[220px] px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Subject name"
                         />
                       </td>
@@ -965,7 +965,7 @@ function MyStorageManager() {
                           type="text"
                           value={item.grade}
                           onChange={(e) => updateStagedField(item.id, 'grade', e.target.value)}
-                          className="w-full min-w-[160px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[90px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Grade"
                         />
                       </td>
@@ -974,7 +974,7 @@ function MyStorageManager() {
                           type="text"
                           value={item.unit}
                           onChange={(e) => updateStagedField(item.id, 'unit', e.target.value)}
-                          className="w-full min-w-[180px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[90px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Unit"
                         />
                       </td>
@@ -983,7 +983,7 @@ function MyStorageManager() {
                           type="text"
                           value={item.lesson}
                           onChange={(e) => updateStagedField(item.id, 'lesson', e.target.value)}
-                          className="w-full min-w-[180px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full min-w-[90px] px-3 py-2.5 text-sm font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Lesson"
                         />
                       </td>
@@ -992,7 +992,7 @@ function MyStorageManager() {
                           type="text"
                           value={item.module || ''}
                           onChange={(e) => updateStagedField(item.id, 'module', e.target.value)}
-                          className="w-full px-3 py-2 text-sm bg-white border-2 border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-slate-900 placeholder:text-slate-400"
+                          className="w-full min-w-[100px] px-3 py-2 text-sm bg-white border-2 border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-slate-900 placeholder:text-slate-400"
                           placeholder="Module"
                           style={{ color: item.module ? '#1e293b' : '#64748b' }}
                         />
@@ -1002,7 +1002,7 @@ function MyStorageManager() {
                           type="text"
                           value={item.version || ''}
                           onChange={(e) => updateStagedField(item.id, 'version', e.target.value)}
-                          className="w-full px-3 py-2 text-sm bg-white border-2 border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-slate-900 placeholder:text-slate-400"
+                          className="w-full min-w-[100px] px-3 py-2 text-sm bg-white border-2 border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 text-slate-900 placeholder:text-slate-400"
                           placeholder="Version"
                           style={{ color: item.version ? '#1e293b' : '#64748b' }}
                         />
@@ -1012,11 +1012,10 @@ function MyStorageManager() {
                           <div className="w-full">
                             <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden mb-1">
                               <div
-                                className={`h-full rounded-full transition-all duration-300 ${
-                                  individualProgress[item.id] === 100
-                                    ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                                    : 'bg-gradient-to-r from-blue-500 to-indigo-500'
-                                }`}
+                                className={`h-full rounded-full transition-all duration-300 ${individualProgress[item.id] === 100
+                                  ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                                  : 'bg-gradient-to-r from-blue-500 to-indigo-500'
+                                  }`}
                                 style={{ width: `${individualProgress[item.id]}%` }}
                               />
                             </div>
@@ -1029,22 +1028,22 @@ function MyStorageManager() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
-                            <button
+                        <button
                           onClick={() => removeStaged(item.id)}
                           disabled={uploading}
                           className="text-red-500 hover:text-red-600 transition-all duration-200 p-2 hover:bg-red-50 rounded-xl hover:scale-110 disabled:text-red-300"
                           title="Remove"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-                          </div>
-                </div>
-              )}
+            </div>
+          </div>
+        )}
 
         {success && (
           <>
@@ -1065,7 +1064,7 @@ function MyStorageManager() {
                   </div>
                   Uploaded Videos - Course Information
                 </h3>
-                
+
                 <div className="space-y-4">
                   {uploadedVideos.map((item) => (
                     <div key={item.id || item.videoId} className="bg-white rounded-xl border-2 border-slate-200 shadow-sm p-5">
@@ -1088,7 +1087,7 @@ function MyStorageManager() {
                           <div className="w-1 h-6 bg-blue-600 rounded"></div>
                           <h5 className="text-base font-bold text-slate-900">Course Information</h5>
                         </div>
-                        
+
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                           {/* Subject */}
                           <div>
