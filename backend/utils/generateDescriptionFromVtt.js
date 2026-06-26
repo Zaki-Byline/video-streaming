@@ -30,16 +30,7 @@ const STOP_WORDS = new Set([
   'like', 'yeah', 'okay', 'ok', 'well', 'right', 'going', 'know', 'think', 'really'
 ]);
 
-const METADATA_PROMPT = `You are an expert educational content writer.
-
-From the transcript below, return ONLY valid JSON (no markdown) in this exact shape:
-{"description":"50-150 word educational summary","keywords":["word1","word2"],"tags":["tag1","tag2"]}
-
-Rules:
-- description: clear, simple, for students, no timestamps, 50-150 words
-- keywords: 5-8 search terms
-- tags: 5-10 topic tags
-- Do not mention "transcript"
+const METADATA_PROMPT = `You are an expert technical writer and professional video describer. Transform the transcript below into a highly professional, academic, and executive-level summary. One continuous paragraph, 3–4 lines max. Never start any sentence with "This". Logical flow: topic → methodology → findings → outcome. Output only the paragraph.
 
 Transcript:
 ----------------
@@ -140,17 +131,16 @@ async function generateWithOpenAI(transcript) {
       role: 'user',
       content: METADATA_PROMPT.replace('{{TRANSCRIPT}}', transcript.slice(0, 12000))
     }],
-    response_format: { type: 'json_object' }
+    temperature: 0.8
   });
 
   const raw = completion.choices[0]?.message?.content?.trim();
-  if (!raw) throw new Error('OpenAI returned empty metadata');
+  if (!raw) throw new Error('OpenAI returned empty description');
 
-  const parsed = JSON.parse(raw);
   return {
-    description: String(parsed.description || '').trim(),
-    keywords: Array.isArray(parsed.keywords) ? parsed.keywords.map(String) : [],
-    tags: Array.isArray(parsed.tags) ? parsed.tags.map(String) : []
+    description: raw,
+    keywords: [],
+    tags: []
   };
 }
 

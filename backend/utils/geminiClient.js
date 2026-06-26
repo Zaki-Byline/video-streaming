@@ -48,13 +48,12 @@ export function formatGeminiError(error, responseBody = null) {
   }
   if (isHighDemandError(message)) {
     return (
-      'Gemini is temporarily overloaded. Wait a minute and try again, or set GEMINI_MODEL=gemini-2.5-flash-lite in backend/.env.'
+      'Gemini is temporarily overloaded. The system will automatically retry with fallback models. If this keeps happening, wait a few minutes and try again.'
     );
   }
   if (isQuotaError(message)) {
     return (
-      'Gemini quota exceeded for this model. Set GEMINI_MODEL=gemini-2.5-flash-lite in backend/.env ' +
-      'or enable billing in Google AI Studio (https://aistudio.google.com/).'
+      'Gemini quota exceeded. Enable billing in Google AI Studio (https://aistudio.google.com/) or wait for the quota to reset.'
     );
   }
   return message;
@@ -71,7 +70,7 @@ async function callGeminiModel(model, prompt, apiKey) {
     },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.5 }
+      generationConfig: { temperature: 0.8 }
     })
   });
 
@@ -93,7 +92,7 @@ async function callGeminiModel(model, prompt, apiKey) {
 }
 
 const MAX_ATTEMPTS_PER_MODEL = 3;
-const RETRY_DELAYS_MS = [2000, 5000];
+const RETRY_DELAYS_MS = [5000, 15000];
 
 /**
  * Generate text using Gemini with per-model retries and model fallbacks.

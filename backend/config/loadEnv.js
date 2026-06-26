@@ -48,7 +48,7 @@ export function getGeminiModel() {
 /** Models to try in order when the primary model is overloaded or out of quota. */
 export function getGeminiModelFallbacks() {
   const primary = getGeminiModel();
-  const defaults = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+  const defaults = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'];
   return [...new Set([primary, ...defaults])];
 }
 

@@ -174,14 +174,22 @@ function PublicVideoPage() {
   
   console.log('[PublicVideoPage] Final streaming URL that will be passed to VideoPlayer:', streamUrl);
   
-  // Generate filename from Grade + Lesson + Unit in format G1_L1_U1_M1.png
+  // Generate filename using Video Title as primary identifier
+  // Format: Video_Title_G12_U1_L6_V1.0.png
   const generateQRCodeFilename = () => {
+    // Sanitize title: replace spaces/special chars with underscores
+    const safeTitle = (video.title || '')
+      .trim()
+      .replace(/[^a-zA-Z0-9\s]/g, '')
+      .replace(/\s+/g, '_');
+
     const parts = [];
-    if (video.grade) parts.push(`G${video.grade}`);
+    if (safeTitle) parts.push(safeTitle);
+    if (video.grade)  parts.push(`G${video.grade}`);
+    if (video.unit)   parts.push(`U${video.unit}`);
     if (video.lesson) parts.push(`L${video.lesson}`);
-    if (video.course) parts.push(`U${video.course}`); // Using course as unit
-    if (video.module) parts.push(`M${video.module}`);
-    
+    if (video.version) parts.push(`V${video.version}`);
+
     if (parts.length > 0) {
       return parts.join('_') + '.png';
     }

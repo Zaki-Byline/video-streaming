@@ -759,3 +759,29 @@
   .vd-skel,
   .vd-generating-lines span { animation: none; }
 }
+
+/* ── Source badges (table) ───────────────────────────────────── */
+.vd-src-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  line-height: 1.7;
+  margin-top: 4px;
+}
+.vd-src-gemini  { background: #ddf0e6; color: #1a5e35; }
+.vd-src-openai  { background: #e8f0fb; color: #3b6ea8; }
+.vd-src-manual  { background: #f0ebfb; color: #6b4fa8; }
+.vd-src-other   { background: var(--vd-line); color: var(--vd-ink-soft); }
+.vd-src-empty   { background: #fdf3e3; color: #b8762e; }
+
+/* ── Selected-row highlight (active, not just checkbox) ──────── */
+.vd-table tbody tr.data-row.is-selected {
+  background: var(--vd-accent-soft);
+  outline: 1px solid #b8d9c5;
+  outline-offset: -1px;
+}
