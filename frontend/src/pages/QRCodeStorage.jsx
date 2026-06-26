@@ -283,17 +283,22 @@ function QRCodeStorage() {
       // Get the SVG as a string
       const svgString = new XMLSerializer().serializeToString(clonedSvg);
       
-      // Generate filename from Grade + Unit + Lesson + Module + Version in format G1_U1_L1_M1_V1.1.svg
-      // Order: Grade, Unit, Lesson, Module, Version (G_U_L_M_V)
-      // Version is critical to differentiate between videos with same metadata but different versions
+      // Generate filename using Video Title as primary identifier
+      // Format: Video_Title_G1_U1_L1_M1_V1.svg
+      const safeTitle = (videoData?.title || '')
+        .trim()
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .replace(/\s+/g, '_');
+
       const parts = [];
-      if (videoData?.grade) parts.push(`G${videoData.grade}`);
-      if (videoData?.unit) parts.push(`U${videoData.unit}`); // Use unit field for U prefix
-      if (videoData?.lesson) parts.push(`L${videoData.lesson}`);
-      if (videoData?.module) parts.push(`M${videoData.module}`);
-      if (videoData?.version) parts.push(`V${videoData.version}`); // Add version to differentiate
-      
-      const filename = parts.length > 0 
+      if (safeTitle)          parts.push(safeTitle);
+      if (videoData?.grade)   parts.push(`G${videoData.grade}`);
+      if (videoData?.unit)    parts.push(`U${videoData.unit}`);
+      if (videoData?.lesson)  parts.push(`L${videoData.lesson}`);
+      if (videoData?.module)  parts.push(`M${videoData.module}`);
+      if (videoData?.version) parts.push(`V${videoData.version}`);
+
+      const filename = parts.length > 0
         ? parts.join('_') + '.svg'
         : `${videoId}_qr_code.svg`;
       
@@ -375,17 +380,22 @@ function QRCodeStorage() {
       // Get the SVG as a string
       const svgString = new XMLSerializer().serializeToString(clonedSvg);
       
-      // Generate filename from Grade + Unit + Lesson + Module + Version in format G1_U1_L1_M1_V1.1.svg
-      // Order: Grade, Unit, Lesson, Module, Version (G_U_L_M_V)
-      // Version is critical to differentiate between videos with same metadata but different versions
+      // Generate filename using Video Title as primary identifier
+      // Format: Video_Title_G1_U1_L1_M1_V1.svg
+      const safeTitle = (videoData?.title || '')
+        .trim()
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .replace(/\s+/g, '_');
+
       const parts = [];
-      if (videoData?.grade) parts.push(`G${videoData.grade}`);
-      if (videoData?.unit) parts.push(`U${videoData.unit}`); // Use unit field for U prefix
-      if (videoData?.lesson) parts.push(`L${videoData.lesson}`);
-      if (videoData?.module) parts.push(`M${videoData.module}`);
-      if (videoData?.version) parts.push(`V${videoData.version}`); // Add version to differentiate
-      
-      const filename = parts.length > 0 
+      if (safeTitle)          parts.push(safeTitle);
+      if (videoData?.grade)   parts.push(`G${videoData.grade}`);
+      if (videoData?.unit)    parts.push(`U${videoData.unit}`);
+      if (videoData?.lesson)  parts.push(`L${videoData.lesson}`);
+      if (videoData?.module)  parts.push(`M${videoData.module}`);
+      if (videoData?.version) parts.push(`V${videoData.version}`);
+
+      const filename = parts.length > 0
         ? parts.join('_') + '.svg'
         : `${videoId}_qr_code.svg`;
       
