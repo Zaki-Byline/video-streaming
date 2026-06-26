@@ -28,7 +28,7 @@ function PublicVideoPage() {
       try {
         const response = await api.get(`/videos/${videoId}`);
         const videoData = response.data;
-        
+
         // Debug: Log module field to verify it's being received
         console.log('[PublicVideoPage] Video data received:', {
           videoId: videoData.video_id,
@@ -43,19 +43,19 @@ function PublicVideoPage() {
           course: videoData.course,
           allFields: Object.keys(videoData)
         });
-        
+
         // Ensure module is properly set (handle null, undefined, empty string)
         if (videoData.module === null || videoData.module === undefined || videoData.module === '') {
           console.warn('[PublicVideoPage] Module field is empty:', videoData.module);
         } else {
           console.log('[PublicVideoPage] Module field has value:', videoData.module);
         }
-        
+
         // Ensure captions array exists (even if empty)
         if (!Array.isArray(videoData.captions)) {
           videoData.captions = [];
         }
-        
+
         // Fetch captions if not already included or if array is empty
         if ((!videoData.captions || videoData.captions.length === 0) && videoData.video_id) {
           try {
@@ -75,7 +75,7 @@ function PublicVideoPage() {
         } else {
           console.log(`[PublicVideoPage] ✅ Video already has ${videoData.captions.length} caption(s)`);
         }
-        
+
         console.log(`[PublicVideoPage] 📤 Setting video state with ${videoData.captions.length} caption(s)`);
         setVideo(videoData);
       } catch (err) {
@@ -112,32 +112,32 @@ function PublicVideoPage() {
 
   // Use short URL if available, otherwise use video_id
   const redirectUrl = `${window.location.origin}/${video.redirect_slug || video.video_id}`;
-  
+
   // Helper function to detect mock URLs - MUST match StreamPage's detection
   const isMockUrl = (url) => {
     if (!url || typeof url !== 'string') return false;
     const urlLower = url.toLowerCase();
     // Check for all known mock URL patterns - MUST match StreamPage
     return urlLower.includes('your-account.r2.cloudflarestorage.com') ||
-           urlLower.includes('r2.cloudflarestorage.com') ||
-           urlLower.includes('mock-cloudflare.example.com') ||
-           (urlLower.includes('example.com') && !urlLower.includes('pub-')) ||
-           urlLower.includes('test.cloudflare') ||
-           (urlLower.includes('cloudflare.com/') && !urlLower.includes('pub-')) ||
-           urlLower.includes('cloudflarestorage.com'); // Catch all cloudflarestorage.com URLs
+      urlLower.includes('r2.cloudflarestorage.com') ||
+      urlLower.includes('mock-cloudflare.example.com') ||
+      (urlLower.includes('example.com') && !urlLower.includes('pub-')) ||
+      urlLower.includes('test.cloudflare') ||
+      (urlLower.includes('cloudflare.com/') && !urlLower.includes('pub-')) ||
+      urlLower.includes('cloudflarestorage.com'); // Catch all cloudflarestorage.com URLs
   };
-  
+
   // Determine streaming URL - handle Cloudflare URLs and mock URLs
   const backendUrl = getBackendBaseUrl();
   const cloudflareUrl = video.streaming_url || video.file_path;
   const isCloudflareUrl = cloudflareUrl && (cloudflareUrl.startsWith('http://') || cloudflareUrl.startsWith('https://'));
-  
+
   // ALWAYS check for mock URLs first, regardless of isCloudflareUrl
   const isMock = cloudflareUrl ? isMockUrl(cloudflareUrl) : false;
-  
+
   // Check if streaming_url is the old format (/api/videos/.../stream)
   const isOldFormat = cloudflareUrl && cloudflareUrl.includes('/api/videos/') && cloudflareUrl.includes('/stream');
-  
+
   let streamUrl;
   // ALWAYS convert mock URLs to local streaming URLs - never pass mock URLs to VideoPlayer
   if (isMock) {
@@ -163,7 +163,7 @@ function PublicVideoPage() {
     streamUrl = `${backendUrl}/s/${streamIdentifier}`;
     console.log('[PublicVideoPage] Using local streaming endpoint:', streamUrl);
   }
-  
+
   // Final safety check: NEVER pass a mock URL to VideoPlayer
   if (streamUrl && isMockUrl(streamUrl)) {
     console.error('[PublicVideoPage] CRITICAL: Attempted to pass mock URL to VideoPlayer! Converting to local URL.');
@@ -171,9 +171,9 @@ function PublicVideoPage() {
     streamUrl = `${backendUrl}/s/${streamIdentifier}`;
     console.log('[PublicVideoPage] Final conversion to local URL:', streamUrl);
   }
-  
+
   console.log('[PublicVideoPage] Final streaming URL that will be passed to VideoPlayer:', streamUrl);
-  
+
   // Generate filename using Video Title as primary identifier
   // Format: Video_Title_G12_U1_L6_V1.0.png
   const generateQRCodeFilename = () => {
@@ -185,8 +185,8 @@ function PublicVideoPage() {
 
     const parts = [];
     if (safeTitle) parts.push(safeTitle);
-    if (video.grade)  parts.push(`G${video.grade}`);
-    if (video.unit)   parts.push(`U${video.unit}`);
+    if (video.grade) parts.push(`G${video.grade}`);
+    if (video.unit) parts.push(`U${video.unit}`);
     if (video.lesson) parts.push(`L${video.lesson}`);
     if (video.version) parts.push(`V${video.version}`);
 
@@ -204,11 +204,11 @@ function PublicVideoPage() {
       const response = await api.get(`/videos/${video.video_id}/qr-download`, {
         responseType: 'blob'
       });
-      
+
       if (!response.data || response.data.size === 0) {
         throw new Error('Empty response from server');
       }
-      
+
       const filename = generateQRCodeFilename();
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
@@ -263,7 +263,7 @@ function PublicVideoPage() {
       element.style.position = '';
 
       const imgData = canvas.toDataURL('image/png', 1.0);
-      
+
       if (!imgData || imgData === 'data:,') {
         throw new Error('Failed to capture image');
       }
@@ -291,11 +291,11 @@ function PublicVideoPage() {
       if (video.lesson) pdfParts.push(`L${video.lesson}`);
       if (video.course) pdfParts.push(`U${video.course}`); // Using course as unit
       if (video.module) pdfParts.push(`M${video.module}`);
-      
-      const pdfFilename = pdfParts.length > 0 
+
+      const pdfFilename = pdfParts.length > 0
         ? pdfParts.join('_') + '.pdf'
         : `${video.video_id}_qr_code.pdf`;
-      
+
       pdf.save(pdfFilename);
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -320,20 +320,20 @@ function PublicVideoPage() {
                 </div>
               </div>
             }>
-              <SimpleVideoPlayer 
-                src={streamUrl} 
-                captions={Array.isArray(video.captions) ? video.captions : []} 
+              <SimpleVideoPlayer
+                src={streamUrl}
+                captions={Array.isArray(video.captions) ? video.captions : []}
                 videoId={video.video_id || videoId}
               />
             </Suspense>
           </div>
-          
+
           {/* Video Title Section */}
           <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
             <h1 className="text-3xl font-bold mb-4 text-slate-900">
               {video.title || 'Untitled Video'}
             </h1>
-            
+
             <div className="flex items-center gap-3 mb-4">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-slate-800 text-sm font-semibold border border-slate-200">
                 <Eye className="w-4 h-4 text-slate-600" />
@@ -343,7 +343,7 @@ function PublicVideoPage() {
                 {video.status ? video.status.charAt(0).toUpperCase() + video.status.slice(1) : ''}
               </span>
             </div>
-            
+
             {/* Description */}
             {video.description && (
               <div className="mb-6 bg-slate-50 rounded-xl p-4 border border-slate-200">
@@ -359,7 +359,7 @@ function PublicVideoPage() {
               <div className="w-1 h-6 bg-blue-600 rounded"></div>
               <h2 className="text-base font-bold text-slate-900">Subject Information</h2>
             </div>
-            
+
             <div className="grid grid-cols-5 gap-3">
               {/* Subject */}
               <div>
@@ -435,10 +435,10 @@ function PublicVideoPage() {
                 <>
                   <span className="text-gray-400">•</span>
                   <span className="text-gray-600">
-                    {new Date(video.created_at).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'short', 
-                      day: 'numeric' 
+                    {new Date(video.created_at).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
                     })}
                   </span>
                 </>
@@ -489,11 +489,11 @@ function PublicVideoPage() {
                     <span className="w-1 h-6 bg-gradient-to-b from-blue-500 to-indigo-500 rounded-full"></span>
                     QR Code
                   </h3>
-                  
+
                 </div>
                 <QRCodeViewer url={redirectUrl} videoId={video.video_id} />
               </div>
-              
+
               {/* Streaming URL - Match header/description block height */}
               <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200 h-fit">
                 <div className="flex items-center justify-between mb-6">
@@ -502,7 +502,7 @@ function PublicVideoPage() {
                     Short URL
                   </h3>
                   <div className="flex gap-2">
-                    
+
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -525,9 +525,9 @@ function PublicVideoPage() {
                         Copy
                       </button>
                     </div>
-                    
+
                   </div>
-                  
+
                   <a
                     href={redirectUrl || `/stream/${video.video_id}`}
                     target="_blank"
@@ -543,10 +543,10 @@ function PublicVideoPage() {
         </div>
 
         {/* Printable Content - Hidden from screen, visible when printing */}
-        <div 
-          ref={printRef} 
-          className="bg-white p-8" 
-          style={{ 
+        <div
+          ref={printRef}
+          className="bg-white p-8"
+          style={{
             display: 'none',
             position: 'absolute',
             left: '-9999px',
@@ -570,8 +570,8 @@ function PublicVideoPage() {
               <div className="border-2 border-gray-300 p-5 rounded-lg bg-gray-50">
                 <h2 className="text-xl font-bold mb-3 text-gray-800 text-center border-b border-gray-300 pb-2">QR Code</h2>
                 <div className="flex justify-center mb-4 p-3 bg-white border-2 border-gray-400 rounded-lg">
-                  <QRCodeSVG 
-                    value={redirectUrl} 
+                  <QRCodeSVG
+                    value={redirectUrl}
                     size={220}
                     level="H"
                     includeMargin={true}
@@ -667,9 +667,9 @@ function PublicVideoPage() {
                   <div className="bg-white p-2 rounded border border-gray-200 col-span-2">
                     <span className="font-bold text-gray-700 block mb-1">Created Date:</span>
                     <span className="text-gray-900">
-                      {new Date(video.created_at).toLocaleDateString('en-US', { 
-                        year: 'numeric', 
-                        month: 'long', 
+                      {new Date(video.created_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
                         day: 'numeric',
                         hour: '2-digit',
                         minute: '2-digit'
@@ -704,9 +704,9 @@ function PublicVideoPage() {
             {/* Footer */}
             <div className="mt-6 pt-4 border-t-2 border-gray-400 text-center">
               <p className="text-xs text-gray-600 font-semibold">Video Delivery System</p>
-              <p className="text-xs text-gray-500 mt-1">Generated on {new Date().toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
+              <p className="text-xs text-gray-500 mt-1">Generated on {new Date().toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
                 day: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit'
